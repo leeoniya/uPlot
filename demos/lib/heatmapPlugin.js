@@ -4,30 +4,31 @@
 // Both axes must follow an aligned, uniform progression in their grid transform.
 // grid uses distr: 1 (linear), 3 (log), or 4 (asinh, with a fixed numeric threshold).
 // Explicit grid.y {distr: 3, factor: >1} instead uses signed exponential rows:
-// edges are factor ** integer, mirrored below zero. Each cell has nonzero, same-sign bounds.
+// Regular edges are factor ** integer, mirrored below zero. One shared bucket may straddle zero.
+// zeroHeight is its minimum projected height in CSS pixels (number or (u) => number, default 0).
+// Expand around zero, clipping at regular rows or the canvas edge. Only the outer zero row can overhang the plot.
 // Grid transforms default to linear X and log Y, independently of the displayed uPlot scales.
 // xSize is the bucket width in transformed X units. Implicit Y width comes from the first cell.
 // cellGap is a CSS-pixel number or (u) => number, read once per draw; it defaults to 0.
 // Omit gaps globally if they remove over 10% of the area formed by the smallest visible grid width/height.
-// Ignore collapsed, excluded, and partially clipped intervals; omit gaps if either minimum is unavailable.
+// Ignore collapsed and partially clipped intervals; omit gaps if either minimum is unavailable.
 // Half the effective gap is inset from each rounded, clipped cell edge.
 // Gaps affect drawing, not hit testing. Cells too small for the gap stay hoverable with full-cell outlines.
 // An effective positive gap disables adjacent-row merging. Fractional gaps are not rounded to device pixels.
 // colorIdx returns a palette index. onHover receives the original source index or null.
-// onPrepare receives (u, minY, maxY, asinhThreshold), with null bounds for empty data.
-// minAbs defaults to 0 and is fixed at initialization. The cutoff must align with Y bucket boundaries.
-// Buckets entirely within [-minAbs, minAbs] do not draw or respond to hover. Source extrema remain unchanged.
-// asinhThreshold is the smallest absolute source Y edge strictly greater than minAbs, with fallback 1.
-export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
+// onPrepare receives (u, minY, maxY, asinhThreshold, zeroMin, zeroMax). Empty data has null extrema.
+// zeroMin and zeroMax are the source bounds of the straddling bucket, or undefined if absent.
+// asinhThreshold is the smallest nonzero absolute edge of a regular Y bucket, with fallback 1.
+export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
 	const gapOption = cellGap;
-	function readGap(u) {
-		const gap = typeof gapOption == 'function' ? gapOption(u) : gapOption;
-		if (!Number.isFinite(gap) || gap < 0)
-			throw new RangeError('cellGap must be a finite, nonnegative number of CSS pixels');
-		return gap;
+	function cssSize(option, name, u) {
+		const size = typeof option == 'function' ? option(u) : option;
+		if (!Number.isFinite(size) || size < 0)
+			throw new RangeError(`${name} must be a finite, nonnegative number of CSS pixels`);
+		return size;
 	}
-	if (typeof gapOption != 'function')
-		readGap();
+	if (typeof gapOption != 'function') cssSize(gapOption, 'cellGap');
+	if (typeof zeroHeight != 'function') cssSize(zeroHeight, 'zeroHeight');
 
 	function axis(options, distr) {
 		distr = options?.distr ?? distr;
@@ -45,22 +46,21 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 	const signed = grid.y?.distr == 3 && grid.y.factor != null;
 	const factor = grid.y?.factor;
 	const logFactor = signed ? Math.log(factor) : 0;
-	let exponent = 0;
+	let exponent = 0, positiveStart = 1, zeroRow = -1;
 	if (signed) {
-		// Coordinates 0 and 1 bound the empty gap between the nearest mirrored edges.
+		// When a zero bucket is present, coordinates 1 and 2 are its edges; positive rows start at 3.
 		// Subtract exponents rather than dividing values, which can overflow at tiny edges.
 		y.fwd = v => {
 			const row = Math.max(0, Math.log(Math.abs(v)) / logFactor - exponent);
-			return v < 0 ? -row : row + 1;
+			return v < 0 ? -row : row + positiveStart;
 		};
-		y.bwd = row => row <= 0 ? -(factor ** (exponent - row)) : factor ** (exponent + row - 1);
+		y.bwd = row => row <= 0 ? -(factor ** (exponent - row)) : factor ** (exponent + row - positiveStart);
 	}
 	// Each axis caches one value and one projected position per grid edge, including missing buckets.
 	// Preparation infers the progression. Drawing projects each edge only once.
 	// Heights are shared across columns, so the cell loop needs no boundary arithmetic.
 	const heights = [];
-	// The excluded near-zero rows form one interval, including any missing rows between them.
-	let hiddenMin = Infinity, hiddenMax = -Infinity;
+
 	// starts[col] and starts[col + 1] delimit a source run. Missing columns have equal offsets.
 	const starts = [];
 	// Preparation-only dedupe: repeated Y bounds reuse a row ID without another grid transform.
@@ -91,8 +91,8 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 		const [xs, yMin, yMax] = u.data[1];
 		length = xs.length;
 		rowIds.clear();
-		hiddenMin = Infinity;
-		hiddenMax = -Infinity;
+		zeroRow = -1;
+
 		invalidate();
 		if (length == 0) {
 			x.count = y.count = 0;
@@ -111,55 +111,48 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 			x.values[col] = x.bwd(x.origin + col * x.step);
 
 		// Ascending Y within each run makes its endpoints sufficient for the full grid extent.
-		let minY = Infinity, maxY = yMax[length - 1];
-		let nearest = Infinity;
+		let minY = Infinity, maxY = -Infinity;
+		let minAbsEdge = Infinity, zeroMin, zeroMax;
 		let nextCol = 0;
-		for (let i = 0; i < length;) {
-			const col = Math.round((x.fwd(xs[i]) - x.origin) * x.invStep) - 1;
+		for (let start = 0; start < length;) {
+			const xMax = xs[start];
+			const col = Math.round((x.fwd(xMax) - x.origin) * x.invStep) - 1;
 			while (nextCol <= col)
-				starts[nextCol++] = i;
-			x.values[col + 1] = xs[i];
-			minY = Math.min(minY, yMin[i]);
-			if (i > 0)
-				maxY = Math.max(maxY, yMax[i - 1]);
+				starts[nextCol++] = start;
+			x.values[col + 1] = xMax;
 
 			// Bracket the next run, then locate its start without scanning every repeated X.
 			let stride = 1;
-			while (i + stride < length && xs[i + stride] == xs[i])
+			while (start + stride < length && xs[start + stride] == xMax)
 				stride *= 2;
-			let lo = i + (stride >>> 1) + 1, hi = Math.min(i + stride, length);
-			while (lo < hi) {
-				const mid = (lo + hi) >>> 1;
-				if (xs[mid] == xs[i])
-					lo = mid + 1;
-				else
-					hi = mid;
-			}
+			const end = bisect(xs, xMax, start + (stride >>> 1) + 1, Math.min(start + stride, length), false, true);
+			minY = Math.min(minY, yMin[start]);
+			maxY = Math.max(maxY, yMax[end - 1]);
 			if (signed) {
-				// Ordered runs need only a binary search for their nearest regular edges.
-				let low = i, high = lo;
-				while (low < high) {
-					const mid = (low + high) >>> 1;
-					if (yMin[mid] < 0)
-						low = mid + 1;
-					else
-						high = mid;
+				const split = bisect(yMin, 0, start, end);
+				if (split > start) {
+					let edge = yMax[split - 1];
+					if (edge > 0) {
+						zeroMin = yMin[split - 1];
+						zeroMax = edge;
+						edge = split - 1 > start ? yMax[split - 2] : -Infinity;
+					}
+					minAbsEdge = Math.min(minAbsEdge, -edge);
 				}
-				if (low > i)
-					nearest = Math.min(nearest, -yMax[low - 1]);
-				if (low < lo)
-					nearest = Math.min(nearest, yMin[low]);
+				if (split < end)
+					minAbsEdge = Math.min(minAbsEdge, yMin[split]);
 			}
-			i = lo;
+			start = end;
 		}
 		while (nextCol <= x.count)
 			starts[nextCol++] = length;
 
 		if (signed) {
-			exponent = Math.round(Math.log(nearest) / logFactor);
-			y.origin = Math.round(y.fwd(minY));
+			positiveStart = zeroMin == null ? 1 : 3;
+			exponent = minAbsEdge == Infinity ? 0 : Math.round(Math.log(minAbsEdge) / logFactor);
+			y.origin = minY === zeroMin ? 1 : Math.round(y.fwd(minY));
 			y.step = y.invStep = 1;
-			y.count = Math.round(y.fwd(maxY)) - y.origin;
+			y.count = (maxY === zeroMax ? 2 : Math.round(y.fwd(maxY))) - y.origin;
 		}
 		else {
 			y.origin = y.fwd(minY);
@@ -170,10 +163,16 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 		y.values.length = y.count + 1;
 		for (let row = 0; row <= y.count; row++)
 			y.values[row] = y.bwd(y.origin + row * y.step);
+		if (zeroMin != null) {
+			zeroRow = 1 - y.origin;
+			rowIds.set(zeroMin, zeroRow);
+
+			y.values[zeroRow] = zeroMin;
+			y.values[zeroRow + 1] = zeroMax;
+		}
 		if (cellRows.length < length)
 			cellRows = new Uint32Array(Math.max(length, cellRows.length * 2));
 
-		let asinhThreshold = Infinity;
 		for (let i = 0; i < length; i++) {
 			const bottom = yMin[i];
 			let row = rowIds.get(bottom);
@@ -184,19 +183,17 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 				const top = yMax[i];
 				y.values[row] = bottom;
 				y.values[row + 1] = top;
-				const absBottom = Math.abs(bottom), absTop = Math.abs(top);
-				if (absBottom > minAbs)
-					asinhThreshold = Math.min(asinhThreshold, absBottom);
-				if (absTop > minAbs)
-					asinhThreshold = Math.min(asinhThreshold, absTop);
-				if (Math.max(absBottom, absTop) <= minAbs) {
-					hiddenMin = Math.min(hiddenMin, row);
-					hiddenMax = Math.max(hiddenMax, row);
+				if (!signed) {
+					const absBottom = Math.abs(bottom), absTop = Math.abs(top);
+					if (absBottom > 0)
+						minAbsEdge = Math.min(minAbsEdge, absBottom);
+					if (absTop > 0)
+						minAbsEdge = Math.min(minAbsEdge, absTop);
 				}
 			}
 			cellRows[i] = row;
 		}
-		onPrepare?.(u, minY, maxY, asinhThreshold == Infinity ? 1 : asinhThreshold);
+		onPrepare?.(u, minY, maxY, minAbsEdge == Infinity ? 1 : minAbsEdge, zeroMin, zeroMax);
 	}
 
 	function project(u, axis, key, offset, size) {
@@ -206,8 +203,9 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 		for (let i = 0; i < values.length; i++) {
 			const pixel = Math.round(u.valToPos(values[i], key, true));
 			pixels[i] = Math.max(offset, Math.min(end, pixel));
+			// The zero row gets its final height below; its two spacer rows have no cells.
 			if (cellGap > 0 && i > 0 && pixel >= offset && pixel <= end && previous >= offset && previous <= end &&
-				(axis != y || i - 1 < hiddenMin || i - 1 > hiddenMax)) {
+				(axis != y || zeroRow < 0 || i < zeroRow || i > zeroRow + 2)) {
 				const span = Math.abs(pixel - previous);
 				if (span > 0)
 					minSize = Math.min(minSize, span);
@@ -216,6 +214,20 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 		}
 		pixels.length = values.length;
 		return minSize;
+	}
+
+	// Adjust only the two shared edges. Drawing and hit testing both use these pixels.
+	function projectZero(u, row) {
+		const p = y.pixels, top = p[row + 1], bottom = p[row];
+		const actual = bottom - top;
+		const height = cssSize(zeroHeight, 'zeroHeight', u) * cssToCanY;
+		if (height <= actual || u.scales.y.min > 0 || u.scales.y.max < 0) return;
+		const lo = p[row + 2] ?? 0;
+		const hi = p[row - 1] ?? Math.round(u.height * u.pxRatio);
+		const center = Math.round(u.valToPos(0, 'y', true));
+		p[row + 1] = Math.max(lo, Math.min(top, center - height / 2));
+		p[row] = Math.min(hi, Math.max(bottom, center + height / 2));
+
 	}
 
 	// Search rounded drawing bounds directly, including collapsed edges. Y pixels descend as values increase.
@@ -296,7 +308,7 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 
 	function draw(u) {
 		const { ctx, bbox } = u;
-		cellGap = typeof gapOption == 'function' ? readGap(u) : gapOption;
+		cellGap = typeof gapOption == 'function' ? cssSize(gapOption, 'cellGap', u) : gapOption;
 		// Match the rounded canvas dimensions and the overlay's CSS origin, not nominal DPR.
 		cssToCanX = Math.round(u.width * u.pxRatio) / u.width;
 		cssToCanY = Math.round(u.height * u.pxRatio) / u.height;
@@ -305,10 +317,13 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 		invalidate();
 		if (length > 0 && u.series[1].show) {
 			const minWidth = project(u, x, 'x', bbox.left, bbox.width);
-			const minHeight = project(u, y, 'y', bbox.top, bbox.height);
+			let minHeight = project(u, y, 'y', bbox.top, bbox.height);
+			if (zeroRow >= 0) projectZero(u, zeroRow);
 			heights.length = y.count;
 			for (let row = 0; row < y.count; row++)
-				heights[row] = row >= hiddenMin && row <= hiddenMax ? 0 : y.pixels[row] - y.pixels[row + 1];
+				heights[row] = y.pixels[row] - y.pixels[row + 1];
+			if (cellGap > 0 && zeroRow >= 0 && heights[zeroRow] > 0 && y.values[zeroRow] >= u.scales.y.min && y.values[zeroRow + 1] <= u.scales.y.max)
+				minHeight = Math.min(minHeight, heights[zeroRow]);
 			if (cellGap > 0) {
 				// Projection collects both minima; this decision needs no source-cell scan or extra traversal.
 				const gapX = cellGap * cssToCanX, gapY = cellGap * cssToCanY;
@@ -339,7 +354,7 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, color
 					}
 					continue;
 				}
-				// Consecutive same-color rows share X bounds; gaps and excluded rows break the run.
+				// Consecutive same-color rows share X bounds; missing rows break the run.
 				let runColor = -1, lastRow = -2, top = 0, bottom = 0;
 				for (let i = starts[col], end = starts[col + 1]; i < end; i++) {
 					const row = cellRows[i];

@@ -53,11 +53,10 @@ The cutoff does not affect explicit numeric or callback asinh thresholds.
 
 `scale.clamp` applies only to logarithmic coordinates and normalizes to a function.
 It is not an alias for the asinh cutoff.
-The heatmap plugin captures its own `minAbs` configuration at initialization, independently of the displayed scale distribution.
-It excludes buckets entirely within `[-minAbs, minAbs]` from drawing and hover.
-The cutoff must align with bucket boundaries. Buckets must not straddle the cutoff.
-Source extrema, source indices, and grid geometry remain unchanged.
-The prepared threshold uses source edges with absolute values strictly greater than `minAbs`, with fallback `1`.
+
+The heatmap plugin computes its own threshold from regular Y buckets. It uses their smallest nonzero absolute edge, or `1` if none exists.
+On signed exponential grids, the bucket that straddles zero does not contribute to the threshold.
+The plugin does not filter small regular buckets.
 
 The numeric scanner computes extrema and `minAbs` in one pass.
 It uses infinity sentinels internally and leaves fallback selection to the adaptive threshold consumer.
@@ -123,7 +122,7 @@ A static range array defaults the threshold to `1` unless the caller supplies `a
 - [`src/utils.js`](../../src/utils.js): `getMinMaxAsinh()`.
 - [`src/uPlot.js`](../../src/uPlot.js): scan dispatch, adaptive threshold selection, aggregation, and cache invalidation.
 - [`dist/uPlot.d.ts`](../../dist/uPlot.d.ts): `ScanResult` and the scanner contracts.
-- [`demos/lib/heatmapPlugin.js`](../../demos/lib/heatmapPlugin.js): the prepared heatmap threshold and `minAbs` cutoff.
+- [`demos/lib/heatmapPlugin.js`](../../demos/lib/heatmapPlugin.js): the prepared heatmap threshold.
 
 Regression coverage is in [asinh-scan.mjs](../../test/asinh-scan.mjs) and [asinh-scan-utils.mjs](../../test/asinh-scan-utils.mjs).
 

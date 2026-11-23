@@ -1,4 +1,5 @@
 import uPlot from '../src/uPlot.js';
+import { snapshot1, snapshot2 } from './data/heatmap-snapshots.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
 import { logApproxLut } from './lib/heatmapColorLut.js';
 
@@ -20,18 +21,37 @@ function formatSeconds(seconds) {
 export function createDemo(root, frames) {
 	const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
 	const field = name => frame.schema.fields.findIndex(f => f.name == name);
-	const values = name => frame.data.values[field(name)];
-	const xSize = frame.schema.fields[field('xMax')].config.interval / 1000;
-	const intervalLabel = xSize == 60 ? 'one-minute' : xSize % 60 == 0 ? `${xSize / 60}-minute` : `${xSize}-second`;
-	const times = values('xMax');
-	const xs = new Array(times.length);
-	const yMin = values('yMin');
-	const yMax = values('yMax');
-	const counts = values('count');
-	let minCount = Infinity, maxCount = -Infinity;
+	const synthetic = {
+		interval: frame.schema.fields[field('xMax')].config.interval,
+		values: ['xMax', 'yMin', 'yMax', 'count'].map(name => frame.data.values[field(name)]),
+	};
+	const datasets = { synthetic, snapshot1, snapshot2 };
+	const select = root.querySelector('#dataset');
+	select.value = 'synthetic';
+	let view = createView(root, synthetic);
+	function setDataset() {
+		view.destroy();
+		view = createView(root, datasets[select.value], select.value != 'synthetic');
+	}
+	select.disabled = false;
+	select.addEventListener('change', setDataset);
+	return {
+		get plot() { return view.plot; },
+		destroy() {
+			select.disabled = true;
+			select.removeEventListener('change', setDataset);
+			view.destroy();
+		},
+	};
+}
 
-	for (let i = 0; i < times.length; i++) {
-		xs[i] = times[i] / 1000;
+function createView(root, dataset, isSnapshot = false) {
+	const xSize = dataset.interval / 1000;
+	const intervalLabel = xSize == 60 ? 'one-minute' : xSize % 60 == 0 ? `${xSize / 60}-minute` : `${xSize}-second`;
+	const [times, yMin, yMax, counts] = dataset.values;
+	const xs = times.map(t => t / 1000);
+	let minCount = Infinity, maxCount = -Infinity;
+	for (let i = 0; i < counts.length; i++) {
 		minCount = Math.min(minCount, counts[i]);
 		maxCount = Math.max(maxCount, counts[i]);
 	}
@@ -117,7 +137,8 @@ export function createDemo(root, frames) {
 	let data = sourceData;
 	let signedData;
 
-	const factor = yMax[0] / yMin[0];
+	const factor = dataset.factor ?? yMax[0] / yMin[0];
+
 
 	function mirroredData() {
 		if (signedData == null) {
@@ -142,6 +163,7 @@ export function createDemo(root, frames) {
 		return signedData;
 	}
 	const format = value => Number(value.toPrecision(5)).toString();
+	const formatY = isSnapshot ? format : formatSeconds;
 
 	const readout = root.querySelector('#hover');
 	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
@@ -160,6 +182,7 @@ export function createDemo(root, frames) {
 	const cellGapValue = root.querySelector('#cell-gap-value').firstChild;
 	let gap = cellGap.valueAsNumber;
 	cellGapValue.data = `${gap}px`;
+
 	const setDataButton = root.querySelector('#set-data');
 	const yScale = root.querySelector('#y-scale');
 	const colorScale = root.querySelector('#color-scale');
@@ -174,12 +197,14 @@ export function createDemo(root, frames) {
 	updateColorScale();
 	const signed = root.querySelector('#signed-data');
 	const logOptions = yScale.querySelectorAll('option[value^="log"]');
+	if (isSnapshot) signed.checked = false;
 	if (signed.checked) data = mirroredData();
 	heightValue.data = `${height.value}px`;
 
 	function createPlot(width, plotHeight = height.valueAsNumber) {
-		for (const option of logOptions) option.disabled = signed.checked;
-		if (signed.checked && yScale.value.startsWith('log')) yScale.value = 'asinh';
+		const nonpositive = signed.checked || isSnapshot;
+		for (const option of logOptions) option.disabled = nonpositive;
+		if (nonpositive && yScale.value.startsWith('log')) yScale.value = 'asinh';
 		const mode = yScale.value;
 		const isLog = mode.startsWith('log');
 		const logBase = mode == 'log10' ? 10 : 2;
@@ -213,18 +238,19 @@ export function createDemo(root, frames) {
 					grid: { ...axisLines, filter: filterAxisSplits },
 					ticks: { ...axisLines, filter: filterAxisSplits },
 					size: 85,
-					values: (u, splits) => splits.map(v => v == null ? null : formatSeconds(v)),
+					values: (u, splits) => splits.map(v => v == null ? null : formatY(v)),
 				},
 			],
 			series: [{}, { label: 'Heatmap' }],
 			plugins: [heatmapPlugin({
 				xSize,
-				minAbs: 2 ** -128,
+
 				cellGap: () => gap,
-				grid: signed.checked ? { y: { distr: 3, factor } } : undefined,
+				zeroHeight: isSnapshot ? 4 : 0,
+				grid: isSnapshot || signed.checked ? { y: { distr: 3, factor } } : undefined,
 				colors: palette,
 				colorIdx: count => colorIdx(count),
-				onPrepare(u, minY, maxY, threshold) {
+				onPrepare(u, minY, maxY, threshold, zeroMin, zeroMax) {
 					data = u.data;
 					asinhThreshold = threshold;
 					hoverIdx = undefined;
@@ -237,8 +263,9 @@ export function createDemo(root, frames) {
 						else if (mode == 'asinh')
 							[yRange[0], yRange[1]] = uPlot.rangeAsinh(Math.min(0, minY), Math.max(0, maxY), 2, true);
 						else {
-							yRange[0] = Math.min(0, minY);
-							yRange[1] = Math.max(0, maxY);
+							// An edge zero bucket overhangs the clip; it doesn't need an extra tick.
+							yRange[0] = minY === zeroMin ? 0 : Math.min(0, minY);
+							yRange[1] = maxY === zeroMax ? 0 : Math.max(0, maxY);
 						}
 					}
 					const intervals = xs.length == 0 ? 0 : Math.round((xRange[1] - xRange[0]) / xSize);
@@ -250,7 +277,7 @@ export function createDemo(root, frames) {
 					hoverIdx = i;
 					const [xs, yMin, yMax, counts] = u.data[1];
 					const timeRange = i == null ? '' : u.axes[0].values(u, [xs[i] - xSize, xs[i]], 0, 0, xSize).join('–').replace(/\n/g, ' ');
-					readoutText.data = i == null ? hint : `${timeRange} UTC · Y: ${formatSeconds(yMin[i])}–${formatSeconds(yMax[i])} · Count: ${format(counts[i])}`;
+					readoutText.data = i == null ? hint : `${timeRange} UTC · Y: ${formatY(yMin[i])}–${formatY(yMax[i])} · Count: ${format(counts[i])}`;
 				},
 			})],
 		}, data, host);
@@ -268,6 +295,7 @@ export function createDemo(root, frames) {
 		cellGapValue.data = `${gap}px`;
 		plot.redraw(false, false);
 	};
+
 	const setData = () => plot.setData(plot.data);
 	const setColorScale = () => {
 		updateColorScale();
@@ -290,18 +318,22 @@ export function createDemo(root, frames) {
 	};
 	height.addEventListener('input', setHeight);
 	cellGap.addEventListener('input', setGap);
+
 	setDataButton.addEventListener('click', setData);
 	yScale.addEventListener('change', setYScale);
 	colorScale.addEventListener('change', setColorScale);
 	colorCountInput.addEventListener('input', setColorCount);
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
-	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = signed.disabled = false;
+	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = false;
+	signed.disabled = isSnapshot;
+
 	return {
 		get plot() { return plot; },
 		destroy() {
 			height.removeEventListener('input', setHeight);
 			cellGap.removeEventListener('input', setGap);
+
 			setDataButton.removeEventListener('click', setData);
 			yScale.removeEventListener('change', setYScale);
 			colorScale.removeEventListener('change', setColorScale);

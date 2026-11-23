@@ -35,7 +35,7 @@ function random(seed) {
 	};
 }
 
-function describeFixture(name, cells, gridY = { distr: 3 }, minAbs = 0, xSize = 60) {
+function describeFixture(name, cells, gridY = { distr: 3 }, xSize = 60) {
 	let minY = Infinity, maxY = -Infinity, threshold = Infinity;
 	const rows = new Set();
 	for (let i = 0; i < cells[0].length; i++) {
@@ -43,10 +43,10 @@ function describeFixture(name, cells, gridY = { distr: 3 }, minAbs = 0, xSize = 
 		maxY = Math.max(maxY, cells[2][i]);
 		rows.add(cells[1][i]);
 		for (const v of [cells[1][i], cells[2][i]]) {
-			if (Math.abs(v) > minAbs) threshold = Math.min(threshold, Math.abs(v));
+			if (v != 0) threshold = Math.min(threshold, Math.abs(v));
 		}
 	}
-	return { name, data: [null, cells], grid: { x: { distr: 1 }, y: gridY }, minAbs, xSize,
+	return { name, data: [null, cells], grid: { x: { distr: 1 }, y: gridY }, xSize,
 		minY, maxY, threshold: threshold == Infinity ? 1 : threshold,
 		columns: (cells[0].at(-1) - cells[0][0]) / xSize + 1, occupiedRows: rows.size };
 }
@@ -63,13 +63,13 @@ function synthetic(name, columns, edges, signed = false) {
 			cells[3].push(1);
 		}
 	}
-	return describeFixture(name, cells, signed ? { distr: 3, factor: 2 ** .25 } : { distr: 3 }, signed ? 2 ** -5 : 0);
+	return describeFixture(name, cells, signed ? { distr: 3, factor: 2 ** .25 } : { distr: 3 });
 }
 
 const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
 const field = name => frame.data.values[frame.schema.fields.findIndex(f => f.name == name)];
 const generated = describeFixture('generated-160-columns', [field('xMax').map(v => v / 1000), field('yMin'), field('yMax'), field('count')],
-	{ distr: 3 }, 0, frame.schema.fields.find(f => f.name == 'xMax').config.interval / 1000);
+	{ distr: 3 }, frame.schema.fields.find(f => f.name == 'xMax').config.interval / 1000);
 const small = synthetic('64x64', 64, Array.from({ length: 65 }, (_, i) => 2 ** (-8 + i / 32)));
 const large = synthetic('1000x1000', 1000, Array.from({ length: 1001 }, (_, i) => 2 ** (-8 + i / 32)));
 const positive = Array.from({ length: 65 }, (_, i) => 2 ** (-8 + i / 4));
@@ -98,7 +98,7 @@ async function mount(factory, fixture, display, clipped) {
 			x: { time: false, range: xRange },
 			y: { distr: display == 'log' ? 3 : display == 'asinh' ? 4 : 1, range: yRange, asinh: fixture.threshold },
 		},
-		plugins: [factory({ xSize: fixture.xSize, grid: fixture.grid, minAbs: fixture.minAbs })],
+		plugins: [factory({ xSize: fixture.xSize, grid: fixture.grid })],
 	}, fixture.data, document.body);
 	await Promise.resolve();
 	return u;

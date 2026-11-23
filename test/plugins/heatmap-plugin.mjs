@@ -93,6 +93,10 @@ function signedEdges(factor = 2, first = -4, last = 4) {
 	return [...positive.map(v => -v).reverse(), ...positive];
 }
 
+function recordPrepare(calls) {
+	return (u, min, max, threshold) => calls.push([u, min, max, threshold]);
+}
+
 function close(actual, expected, tolerance = 1e-9) {
 	assert.equal(actual.length, expected.length);
 	actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} != ${expected}`));
@@ -106,14 +110,13 @@ function projectedRect(u, x0, x1, y0, y1) {
 }
 
 // The oracle uses the fixture's explicit edges, not plugin row IDs, paths, or lookup results.
-function oracleRects(u, f, minAbs = 0) {
+function oracleRects(u, f) {
 	const { left, top, width, height } = u.bbox;
 	const xs = f.xEdges.map(v => Math.max(left, Math.min(left + width, Math.round(u.valToPos(v, 'x', true)))));
 	const ys = f.yEdges.map(v => Math.max(top, Math.min(top + height, Math.round(u.valToPos(v, 'y', true)))));
 	return f.cells.map(({ col, row }, id) => ({ id,
-		rect: Math.max(Math.abs(f.yEdges[row]), Math.abs(f.yEdges[row + 1])) <= minAbs ? null :
-			[xs[col], ys[row + 1], xs[col + 1] - xs[col], ys[row] - ys[row + 1]],
-	})).filter(({ rect }) => rect != null && rect[2] > 0 && rect[3] > 0);
+		rect: [xs[col], ys[row + 1], xs[col + 1] - xs[col], ys[row] - ys[row + 1]],
+	})).filter(({ rect }) => rect[2] > 0 && rect[3] > 0);
 }
 
 function oracleHit(boxes, px, py) {
@@ -145,8 +148,8 @@ function pixelQuery(u, px, py, expected, mapping = canvasMapping(u)) {
 	assert.equal(actual, expected, actual === expected ? undefined : `canvas (${px}, ${py})`);
 }
 
-function checkOracle(u, f, minAbs = 0) {
-	const boxes = oracleRects(u, f, minAbs);
+function checkOracle(u, f) {
+	const boxes = oracleRects(u, f);
 	assert.deepEqual(coverage(rects(u)), coverage(boxes.map(b => b.rect)), 'exact rounded, clipped source-cell coverage');
 	const probes = [];
 	for (const { rect: [x, y, w, h] } of boxes) {
@@ -156,14 +159,6 @@ function checkOracle(u, f, minAbs = 0) {
 				[x + w / 2, y + delta], [x + w / 2, y + h + delta]);
 		}
 		probes.push([x, y], [x + w, y], [x, y + h], [x + w, y + h]);
-	}
-	// Probe excluded cells explicitly, including their shared edges with retained cells.
-	for (const { col, row } of f.cells) {
-		if (Math.max(Math.abs(f.yEdges[row]), Math.abs(f.yEdges[row + 1])) <= minAbs) {
-			const [x, y, w, h] = projectedRect(u, f.xEdges[col], f.xEdges[col + 1], f.yEdges[row], f.yEdges[row + 1]);
-			if (w > 0 && h > 0)
-				probes.push([x + w / 2, y + h / 2], [x + w / 2, y], [x + w / 2, y + h]);
-		}
 	}
 	// Sample gaps and offscreen regions as well as occupied edges.
 	for (let ix = -1; ix <= 18; ix++) {
@@ -230,7 +225,6 @@ function sparseFrames() {
 	return framesFor([xs, lo, hi, counts]);
 }
 
-const demoMinAbs = 2 ** -128;
 const colorLabels = { linear: 'Count · linear scale', sqrt: 'Count · √ scale', cbrt: 'Count · ∛ scale', log: 'Count · log scale' };
 const colorModes = Object.keys(colorLabels);
 
@@ -279,7 +273,6 @@ function colorBoundaryCounts(mode, min, max) {
 function checkDemoColors(u, mode, min, max) {
 	const expected = Array.from({ length: 24 }, () => []);
 	u.data[1][3].forEach((count, i) => {
-		if (Math.max(Math.abs(u.data[1][1][i]), Math.abs(u.data[1][2][i])) <= demoMinAbs) return;
 		const rect = bounds(u, i, true, 60);
 		if (rect[2] > 0 && rect[3] > 0)
 			expected[demoColorIndex(count, mode, min, max)].push(rect);
@@ -382,15 +375,14 @@ describe('heatmapPlugin uniform grid', () => {
 		return u;
 	}
 
-	function checkGap(u, f, gap, minAbs = 0) {
+	function checkGap(u, f, gap) {
 		const mapping = canvasMapping(u);
-		const boxes = oracleRects(u, f, minAbs);
+		const boxes = oracleRects(u, f);
 		const gapX = gap * mapping.x, gapY = gap * mapping.y;
 		const minSpan = (edges, key, start, end) => {
 			const pixels = edges.map(value => Math.round(u.valToPos(value, key, true)));
 			const spans = edges.slice(1).map((value, i) => {
-				if (pixels[i] < start || pixels[i] > end || pixels[i + 1] < start || pixels[i + 1] > end ||
-					key == 'y' && Math.max(Math.abs(edges[i]), Math.abs(value)) <= minAbs) return Infinity;
+				if (pixels[i] < start || pixels[i] > end || pixels[i + 1] < start || pixels[i + 1] > end) return Infinity;
 				return Math.abs(pixels[i + 1] - pixels[i]) || Infinity;
 			});
 			return Math.min(...spans);
@@ -399,7 +391,7 @@ describe('heatmapPlugin uniform grid', () => {
 		const minHeight = minSpan(f.yEdges, 'y', u.bbox.top, u.bbox.top + u.bbox.height);
 		if (!Number.isFinite(minWidth + minHeight) || minWidth <= gapX || minHeight <= gapY ||
 			(minWidth - gapX) * (minHeight - gapY) < .9 * minWidth * minHeight) {
-			checkOracle(u, f, minAbs);
+			checkOracle(u, f);
 			return;
 		}
 		const expected = boxes.filter(({ rect: [, , w, h] }) => w > gapX && h > gapY)
@@ -534,15 +526,15 @@ describe('heatmapPlugin uniform grid', () => {
 		finally { plugin.hooks.destroy(); }
 	});
 
-	it('excludes near-zero hidden rows from the minimum height', () => {
+	it('includes near-zero regular rows in the minimum gap height', () => {
 		const f = fixture({ nx: 2, ny: 3, y: { distr: 1 }, yOrigin: -1, ySize: 1, include: () => true });
-		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: 1, minAbs: 1 }, f.data);
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: 1 }, f.data);
 		try {
 			plugin.hooks.setData(u);
 			u.valToPos = (v, key) => key == 'x' ? v * 50 : [100, 99, 98, 0][v + 1];
 			plugin.hooks.draw(u);
-			assert.deepEqual(drawn.flatMap(pathRects), [[.5, .5, 49, 97], [50.5, .5, 49, 97]]);
-			pixelQuery(u, 25, 99.5, null);
+			assert.deepEqual(drawn.flatMap(pathRects), [[0, 0, 50, 100], [50, 0, 50, 100]]);
+			pixelQuery(u, 25, 99.5, 0);
 			pixelQuery(u, 25, 50, 2);
 		}
 		finally { plugin.hooks.destroy(); }
@@ -578,19 +570,19 @@ describe('heatmapPlugin uniform grid', () => {
 		}
 	}
 
-	it('preserves cutoff and sparse hover behavior with gaps on signed asinh and linear displays', async () => {
+	it('preserves sparse hover behavior with gaps on signed asinh and linear displays', async () => {
 		const f = edgeFixture(signedEdges(), { distr: 3, factor: 2 });
 		for (const distr of [1, 4]) {
-			const u = await mount(f, 1.25, { cellGap: .5, minAbs: 1 }, { y: { distr, asinh: 1 } });
-			checkGap(u, f, .5, 1);
-			hover(u, .5, .75, null);
+			const u = await mount(f, 1.25, { cellGap: .5 }, { y: { distr, asinh: 1 } });
+			checkGap(u, f, .5);
+			hover(u, .5, .75, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == .5));
 			hover(u, 2.5, 4, null);
 			u.setData(empty());
 			await Promise.resolve();
 			assert.deepEqual(rects(u), []);
 			u.setData(f.data);
 			await Promise.resolve();
-			checkGap(u, f, .5, 1);
+			checkGap(u, f, .5);
 		}
 	});
 
@@ -717,7 +709,7 @@ describe('heatmapPlugin uniform grid', () => {
 						(col, row) => col != 2 && row != center - 3 && (col + row) % 4 != 1 &&
 							(edges.length < 30 || row < 3 || row > edges.length - 5 || Math.abs(row - center) < 5 || row % 37 == 0));
 					const prepared = [];
-					const u = await mount(f, dpr, { onPrepare: (...args) => prepared.push(args) }, { y: { distr, asinh: threshold } });
+					const u = await mount(f, dpr, { onPrepare: recordPrepare(prepared) }, { y: { distr, asinh: threshold } });
 					assert.equal(prepared.length, 1);
 					assert.deepEqual(prepared[0], [u, edges[0], edges.at(-1), threshold]);
 					assert.ok(oracleRects(u, f).length > 0);
@@ -746,7 +738,7 @@ describe('heatmapPlugin uniform grid', () => {
 					col != 2 && (mode != 'missing rows' || row % 3 != 1) &&
 					(mode != 'asymmetric gap' || row < center - 2 || row > center));
 				const prepared = [], selected = [];
-				const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args),
+				const u = await mount(f, 1.25, { onPrepare: recordPrepare(prepared),
 					colorIdx: count => { selected.push(count); return 0; } },
 					{ y: { distr, asinh: .25, min: Math.min(-1, edges[0]), max: Math.max(1, edges.at(-1)) } });
 				const lower = Math.min(...f.data[1][1]), upper = Math.max(...f.data[1][2]);
@@ -777,7 +769,7 @@ describe('heatmapPlugin uniform grid', () => {
 				{ distr: 3, factor: 2 }, col => col != 2);
 			let f = make(.5);
 			const prepared = [];
-			const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args) }, { y: { distr, asinh: .01 } });
+			const u = await mount(f, 1.25, { onPrepare: recordPrepare(prepared) }, { y: { distr, asinh: .01 } });
 			for (const unit of [.5, 1 / 64, 4]) {
 				f = make(unit);
 				u.setData(f.data);
@@ -804,7 +796,7 @@ describe('heatmapPlugin uniform grid', () => {
 			const grid = { distr: 3, factor: 2 };
 			const initial = edgeFixture([-8, -4, -2, -1], grid, () => true);
 			const prepared = [];
-			const u = await mount(initial, 1.25, { onPrepare: (...args) => prepared.push(args) },
+			const u = await mount(initial, 1.25, { onPrepare: recordPrepare(prepared) },
 				{ y: { distr, asinh: .25, min: -16, max: 16 } });
 			for (const edges of [[-8, -4, -2, -1], [1, 2, 4, 8], [-16, -8, -4], [.25, .5, 1], [-8, -4, .5, 1, 2]]) {
 				const f = edgeFixture(edges, grid, () => true);
@@ -818,7 +810,7 @@ describe('heatmapPlugin uniform grid', () => {
 		it(`reports the nearest nonzero bound for signed linear buckets with actual zero edges on display ${distr}`, async () => {
 			const f = edgeFixture([-3, -2, -1, 0, 1, 2, 3], { distr: 1 }, () => true);
 			const prepared = [];
-			const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args) }, { y: { distr, asinh: 1 } });
+			const u = await mount(f, 1.25, { onPrepare: recordPrepare(prepared) }, { y: { distr, asinh: 1 } });
 			assert.deepEqual(prepared[0], [u, -3, 3, 1]);
 			checkOracle(u, f);
 			for (const [edges, expected] of [[[-3, -2, -1, 0], 1], [[0, 1, 2, 3], 1], [[-1e-128, 0, 1e-128], 1e-128]]) {
@@ -830,67 +822,36 @@ describe('heatmapPlugin uniform grid', () => {
 		});
 	}
 
-	for (const [label, edges, cutoff, expected, gridY = { distr: 3, factor: 2 }] of [
-		['equal edges on both signs', signedEdges(2, -2, 2), .25, .5],
-		['equal negative edge', [-4, -2, -1, -.5, -.25], .25, .5],
-		['equal positive edge', [.25, .5, 1, 2, 4], .25, .5],
-		['positive edge just above cutoff', [.5, 1, 2], .5 * (1 - Number.EPSILON), .5],
-		['negative edge just above cutoff', [-2, -1, -.5], .5 * (1 - Number.EPSILON), .5],
-		['nearer negative edge', [-2, -1, -.5, 1, 2, 4], .25, .5],
-		['nearer positive edge', [-4, -2, -1, .5, 1, 2], .25, .5],
-		['all edges at or below cutoff', [-2, -1, .5, 1, 2], 2, 1],
-		['all edges below cutoff', [-2, -1, .5, 1, 2], 4, 1],
-		['zero linear edges', [-.5, 0, .5], 0, .5, { distr: 1 }],
-		['equal linear edges', [-2, -1, 0, 1, 2], 1, 2, { distr: 1 }],
-	]) {
-		it(`uses immutable minAbs for ${label}`, async () => {
-			const f = edgeFixture(edges, gridY, () => true);
-			const prepared = [];
-			const snapshot = structuredClone(f.data);
-			const u = await mount(f, 1.25, { minAbs: cutoff, onPrepare: (...args) => prepared.push(args) },
-				{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
-			assert.deepEqual(prepared, [[u, edges[0], edges.at(-1), expected]]);
-			assert.equal(u.scales.y._asinh, expected);
-			checkOracle(u, f, cutoff);
-			u.redraw(); await Promise.resolve();
-			assert.equal(prepared.length, 1);
-			checkOracle(u, f, cutoff);
-			assert.deepEqual(f.data, snapshot, 'filtering never removes or rewrites source cells');
-		});
-	}
-
-	for (const [label, edges, gridY, minAbs, displays] of [
-		['sparse signed log', signedEdges(2, -3, 3), { distr: 3, factor: 2 }, 1, [1, 4]],
-		['sparse positive signed log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3, factor: 2 }, 1, [1, 3, 4]],
-		['sparse negative signed log', [-8, -4, -2, -1, -.5, -.25, -.125], { distr: 3, factor: 2 }, 1, [1, 4]],
-		['ordinary positive log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3 }, 1, [1, 3, 4]],
-		['signed linear', [-4, -3, -2, -1, 0, 1, 2, 3, 4], { distr: 1 }, 1, [1, 4]],
-		['positive linear', [0, 1, 2, 3, 4], { distr: 1 }, 1, [1, 4]],
-		['negative linear', [-4, -3, -2, -1, 0], { distr: 1 }, 1, [1, 4]],
-		['all-skipped signed log', signedEdges(2, -3, 3), { distr: 3, factor: 2 }, 8, [1, 4]],
-		['all-skipped positive log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3 }, 8, [1, 3, 4]],
+	for (const [label, edges, gridY, displays] of [
+		['sparse signed log', signedEdges(2, -3, 3), { distr: 3, factor: 2 }, [1, 4]],
+		['sparse positive signed log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3, factor: 2 }, [1, 3, 4]],
+		['sparse negative signed log', [-8, -4, -2, -1, -.5, -.25, -.125], { distr: 3, factor: 2 }, [1, 4]],
+		['ordinary positive log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3 }, [1, 3, 4]],
+		['signed linear', [-4, -3, -2, -1, 0, 1, 2, 3, 4], { distr: 1 }, [1, 4]],
+		['positive linear', [0, 1, 2, 3, 4], { distr: 1 }, [1, 4]],
+		['negative linear', [-4, -3, -2, -1, 0], { distr: 1 }, [1, 4]],
 	]) {
 		for (const distr of displays) {
 			for (const dpr of [1, 1.25, 2]) {
-				it(`excludes ${label} buckets from drawing and hover on display ${distr}, DPR ${dpr}`, async () => {
+				it(`draws and hit-tests ${label} buckets on display ${distr}, DPR ${dpr}`, async () => {
 					const f = edgeFixture(edges, gridY);
 					const snapshot = structuredClone(f.data), prepared = [], selected = [];
 					const sourceEdges = [...f.data[1][1], ...f.data[1][2]];
-					const eligible = sourceEdges.map(Math.abs).filter(v => v > minAbs);
+					const eligible = sourceEdges.map(Math.abs).filter(v => v > 0);
 					const expected = [Math.min(...f.data[1][1]), Math.max(...f.data[1][2]), eligible.length ? Math.min(...eligible) : 1];
-					const u = await mount(f, dpr, { minAbs, onPrepare: (...args) => prepared.push(args),
+					const u = await mount(f, dpr, { onPrepare: recordPrepare(prepared),
 						colorIdx: count => { selected.push(count); return 0; } },
 						{ y: { distr, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
-					assert.deepEqual(prepared, [[u, ...expected]], 'metadata uses unfiltered source extrema');
-					assert.deepEqual(selected, oracleRects(u, f, minAbs).map(b => f.data[1][3][b.id]));
-					checkOracle(u, f, minAbs);
+					assert.deepEqual(prepared, [[u, ...expected]], 'metadata uses source extrema');
+					assert.deepEqual(selected, oracleRects(u, f).map(b => f.data[1][3][b.id]));
+					checkOracle(u, f);
 					for (const [width, height] of [[317, 213], [91, 61], [601, 361]]) {
 						selected.length = 0;
 						u.setSize({ width, height });
 						u.setScale('x', { min: .2, max: 4.7 });
 						await Promise.resolve();
-						checkOracle(u, f, minAbs);
-						assert.deepEqual(selected, oracleRects(u, f, minAbs).map(b => f.data[1][3][b.id]), 'hidden cells never select colors');
+						checkOracle(u, f);
+						assert.deepEqual(selected, oracleRects(u, f).map(b => f.data[1][3][b.id]), 'only visible cells select colors');
 					}
 					assert.equal(prepared.length, 1, 'resize and hover reuse preparation');
 					assert.deepEqual(f.data, snapshot, 'source cells and counts remain intact');
@@ -899,115 +860,233 @@ describe('heatmapPlugin uniform grid', () => {
 		}
 	}
 
-	it('retains shared cutoff edges and original hover IDs without exposing hidden rows or sparse holes', async () => {
-		const f = edgeFixture([-3, -2, -1, 0, 1, 2, 3], { distr: 1 },
-			(col, row) => col != 2 && !(col == 1 && (row == 1 || row == 4)));
-		const hovered = [];
-		const u = await mount(f, 1, { minAbs: 1, colors: ['red', 'blue'], colorIdx: count => count % 2,
-			onHover: (u, id) => hovered.push(id) }, { y: { distr: 1 } });
-		checkOracle(u, f, 1);
+	const tiny = 1e-30;
+	function zeroBucketData(rows) {
+		const data = empty();
+		for (const [x, lo, hi] of rows)
+			[x, lo, hi, lo < 0 && hi > 0 ? 2 : 1].forEach((v, i) => data[1][i].push(v));
+		return data;
+	}
+
+	it('reports source extrema but excludes the signed straddling bucket from the threshold', () => {
+		const prepared = [];
+		const { u, plugin } = isolated({ xSize: 1, grid: { y: { distr: 3, factor: 2 } }, onPrepare: recordPrepare(prepared) });
+		const regular = 2 ** -140, zero = 2 ** -200;
+		try {
+			for (const [rows, min, max, threshold] of [
+				[[[1, -zero, zero]], -zero, zero, 1],
+				[[[1, -zero, zero], [2, regular, 2 * regular]], -zero, 2 * regular, regular],
+				[[[1, -2 * regular, -regular], [2, -zero, zero]], -2 * regular, zero, regular],
+			]) {
+				u.data = zeroBucketData(rows);
+				plugin.hooks.setData(u);
+				assert.deepEqual(prepared.at(-1), [u, min, max, threshold]);
+			}
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	async function mountZeroBucket(rows, zeroHeight, cellGap = 0) {
+		const data = zeroBucketData(rows), hovered = [];
+		const f = { ...sourceFixture(data, 1), xSize: 1, grid: { x: { distr: 1 }, y: { distr: 3, factor: 2 } } };
+		const u = await mount(f, 1, { zeroHeight, cellGap, colors: ['blue', 'red'], colorIdx: count => count - 1,
+			onHover: (u, id) => hovered.push(id) }, { y: { distr: 1, min: -4, max: 4 } });
 		enter(u);
-		for (const [x, y, row] of [[.5, -1, 1], [.5, 1, 4], [1, -1, 1], [1, 1, 4],
-			[.5, -.5, null], [.5, .5, null], [1.5, -1, null], [1.5, 1, null], [2.5, 2.5, null]]) {
-			const id = row == null ? null : f.cells.findIndex(c => c.col == 0 && c.row == row);
-			hover(u, x, y, id);
-			assert.equal(hovered.at(-1), id, 'onHover receives the source index, not a filtered index');
+		return { u, hovered };
+	}
+
+	function checkZeroCursor(u, hovered, px, py, id, rect) {
+		const m = canvasMapping(u);
+		u.setCursor({ left: px / m.x - m.left, top: py / m.y - m.top });
+		assert.equal(u.cursor.dataIdx(u, 1), id);
+		assert.equal(hovered.at(-1), id);
+		const { left, top, width, height } = u.cursor.points.bbox(u, 1);
+		if (id == null)
+			assert.deepEqual([width, height], [0, 0]);
+		else
+			close([(left + m.left) * m.x, (top + m.top) * m.y, width * m.x, height * m.y], rect);
+	}
+
+	it('draws sparse zero and regular buckets without filling missing times', async () => {
+		const { u, hovered } = await mountZeroBucket([[1, -2, -1], [1, -1, -.5], [1, -tiny, tiny], [1, .5, 1],
+			[1, 1, 2], [3, 1, 2], [4, -tiny, tiny]], 12);
+		const regular = [0, 1, 3, 4, 5].map(id => bounds(u, id, true));
+		const zero = [2, 6].map(id => {
+			const [x, center, w] = bounds(u, id, true);
+			return [x, center - 6, w, 12];
+		});
+		const [ordinaryPath, zeroPath] = fills(u);
+		assert.deepEqual(coverage(pathRects(ordinaryPath)), coverage(regular));
+		assert.deepEqual(pathRects(zeroPath), zero);
+		for (const [i, [x, y, w, h]] of zero.entries()) {
+			for (const dy of [1, h - 1])
+				checkZeroCursor(u, hovered, x + w / 2, y + dy, [2, 6][i], zero[i]);
+			checkZeroCursor(u, hovered, x + w / 2, y - 1, null);
+		}
+		for (const [x, y] of [[1.5, 0], [2.5, 0], [.5, -.375], [.5, .375]])
+			checkZeroCursor(u, hovered, u.valToPos(x, 'x', true), u.valToPos(y, 'y', true), null);
+		hover(u, 2.5, 1.5, 5);
+	});
+
+	it('uses the projected zero height for cell gaps and the cursor outline', async () => {
+		const { u, hovered } = await mountZeroBucket([[1, -2, -1], [1, -tiny, tiny], [1, 1, 2]], 16, .5);
+		const [x, center, w] = bounds(u, 1, true);
+		const rect = [x + .25, center - 8 + .25, w - .5, 15.5];
+		assert.deepEqual(pathRects(fills(u)[1]), [rect]);
+		checkZeroCursor(u, hovered, x + w / 2, center, 1, rect);
+	});
+
+	it('clamps an oversized zero bucket between mirrored neighbors and drops it when zoomed wholly away', async () => {
+		const { u, hovered } = await mountZeroBucket([[1, -2, -1], [1, -tiny, tiny], [1, 1, 2]], 500);
+		const gap = projectedRect(u, 0, 1, -1, 1);
+		assert.deepEqual(pathRects(fills(u)[1]), [gap]);
+		const [x, y, w, h] = gap;
+		checkZeroCursor(u, hovered, x + w / 2, y + h - 1, 1, gap);
+		checkZeroCursor(u, hovered, x + w / 2, y + h + 1, 0, bounds(u, 0, true));
+		for (const [min, max, id] of [[.01, 2, 2], [-2, -.01, 0]]) {
+			u.setScale('y', { min, max }); await Promise.resolve();
+			assert.deepEqual(rects(u), [bounds(u, id, true)]);
+			const edge = min > 0 ? u.bbox.top + u.bbox.height - 1 : u.bbox.top + 1;
+			checkZeroCursor(u, hovered, x + w / 2, edge, null);
 		}
 	});
 
-	it('prepares initially empty data with minAbs and resets hidden intervals across one-sided replacements', async () => {
+	it('keeps the outer zero bucket height in fractional CSS pixels after resize and DPR changes', async () => {
+		let height = 12.5;
+		const { u, hovered } = await mountZeroBucket([[1, -tiny, tiny], [1, 1, 2]], () => height);
+		u.setScale('y', { min: -.03125, max: 4 }); await Promise.resolve();
+		function checkHeight() {
+			const [x, , w] = bounds(u, 0, true);
+			const center = Math.round(u.valToPos(0, 'y', true));
+			const top = center - height * canvasMapping(u).y / 2;
+			const bottom = Math.min(Math.round(u.height * u.pxRatio), center + height * canvasMapping(u).y / 2);
+			assert.ok(bottom > u.bbox.top + u.bbox.height);
+			const rect = [x, top, w, bottom - top];
+			assert.deepEqual(pathRects(fills(u)[1]), [rect]);
+			checkZeroCursor(u, hovered, x + w / 2, top + 1, 0, rect);
+			checkZeroCursor(u, hovered, x + w / 2, top - 1, null);
+		}
+		checkHeight();
+		height = 24.25;
+		u.redraw(); await Promise.resolve();
+		checkHeight();
+		u.setSize({ width: 401, height: 241 }); await Promise.resolve();
+		checkHeight();
+		u.setPxRatio(1.25); await Promise.resolve();
+		checkHeight();
+	});
+
+	it('uses true zero bucket bounds above the minimum and resets detection on setData', async () => {
+		let height = 8;
+		const wide = [[1, -2, -1], [1, -.25, .25]];
+		const { u, hovered } = await mountZeroBucket(wide, () => height);
+		function checkWide() {
+			const rect = bounds(u, 1, true), [x, y, w] = rect;
+			assert.deepEqual(pathRects(fills(u)[1]), [rect]);
+			checkZeroCursor(u, hovered, x + w / 2, y + 1, 1, rect);
+		}
+		checkWide();
+		u.setData(zeroBucketData([[1, -2, -1]])); await Promise.resolve();
+		assert.deepEqual(rects(u), [bounds(u, 0, true)]);
+		checkZeroCursor(u, hovered, u.valToPos(.5, 'x', true), u.valToPos(0, 'y', true), null);
+		height = 0;
+		u.setData(zeroBucketData([[1, -2, -1], [1, -tiny, tiny]])); await Promise.resolve();
+		assert.deepEqual(pathRects(fills(u)[1]), []);
+		hover(u, .5, 0, null);
+		u.setData(zeroBucketData(wide)); await Promise.resolve();
+		checkWide();
+	});
+
+	it('rebuilds regular rows across empty and one-sided replacements', async () => {
 		const gridY = { distr: 3, factor: 2 }, prepared = [];
 		const initial = edgeFixture(signedEdges(), gridY);
 		initial.data = empty(); initial.cells = [];
-		const u = await mount(initial, 1.25, { minAbs: 1, onPrepare: (...args) => prepared.push(args) },
+		const u = await mount(initial, 1.25, { onPrepare: recordPrepare(prepared) },
 			{ y: { distr: 4, asinh: 1 } });
 		assert.deepEqual(prepared, [[u, null, null, 1]]);
-		checkOracle(u, initial, 1);
+		checkOracle(u, initial);
 		for (const edges of [[.125, .25, .5, 1], [-8, -4, -2], [-1, -.5, -.25], [2, 4, 8],
 			[-4, -2, -1, -.5, .5, 1, 2, 4]]) {
 			const f = edgeFixture(edges, gridY);
 			u.setData(f.data); await Promise.resolve();
 			assert.deepEqual(prepared.at(-1).slice(1, 3), [Math.min(...f.data[1][1]), Math.max(...f.data[1][2])]);
-			checkOracle(u, f, 1);
+			checkOracle(u, f);
 		}
 	});
 
-	it('keeps an asinh grid independent of its adaptive display cutoff', async () => {
+	it('keeps an asinh grid independent of its adaptive display threshold', async () => {
 		const f = fixture({ y: { distr: 4, asinh: .25 }, yOrigin: -3, ySize: 1, include: () => true });
-		const cutoff = Math.abs(f.yEdges[2]), expected = Math.abs(f.yEdges[1]);
+		const expected = Math.abs(f.yEdges[2]);
 		const prepared = [];
-		const u = await mount(f, 1.25, { minAbs: cutoff, onPrepare: (...args) => prepared.push(args) },
+		const u = await mount(f, 1.25, { onPrepare: recordPrepare(prepared) },
 			{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
 		assert.deepEqual(prepared, [[u, f.yEdges[0], f.yEdges.at(-1), expected]]);
 		assert.equal(u.scales.y._asinh, expected);
-		checkOracle(u, f, cutoff);
+		checkOracle(u, f);
 	});
 
 	for (const distr of [1, 3, 4]) {
-		for (const minAbs of [undefined, 0, 1]) {
-			it(`uses minAbs ${minAbs ?? 'default zero'} without reading scale.clamp on display ${distr}`, () => {
-				const f = edgeFixture(signedEdges(2, -3, 2), { distr: 3, factor: 2 }, () => true);
-				const prepared = [];
-				const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, minAbs,
-					onPrepare: (...args) => prepared.push(args) }, f.data);
-				u.scales.y = { distr, get clamp() { throw new Error('Plugin must not access scale.clamp'); } };
-				try {
-					plugin.hooks.setData(u);
-					assert.deepEqual(prepared, [[u, -4, 4, minAbs == 1 ? 2 : .125]]);
-					plugin.hooks.draw(u);
-					assert.deepEqual(coverage(drawn.flatMap(pathRects)), coverage(oracleRects(u, f, minAbs).map(b => b.rect)));
-					pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
-				}
-				finally { plugin.hooks.destroy(); }
-			});
-		}
+		it(`prepares signed edges without reading scale.clamp on display ${distr}`, () => {
+			const f = edgeFixture(signedEdges(2, -3, 2), { distr: 3, factor: 2 }, () => true);
+			const prepared = [];
+			const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid,
+				onPrepare: recordPrepare(prepared) }, f.data);
+			u.scales.y = { distr, get clamp() { throw new Error('Plugin must not access scale.clamp'); } };
+			try {
+				plugin.hooks.setData(u);
+				assert.deepEqual(prepared, [[u, -4, 4, .125]]);
+				plugin.hooks.draw(u);
+				assert.deepEqual(coverage(drawn.flatMap(pathRects)), coverage(oracleRects(u, f).map(b => b.rect)));
+				pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
+			}
+			finally { plugin.hooks.destroy(); }
+		});
 	}
 
-	it('keeps minAbs fixed while replacement, in-place, all-skipped, and empty setData refresh metadata', async () => {
-		const minAbs = 2;
+	it('refreshes the nearest regular edge on replacement, in-place edits, and empty setData', async () => {
 		let f = edgeFixture(signedEdges(2, -3, 3), { distr: 3, factor: 2 }, () => true);
 		const prepared = [];
-		const u = await mount(f, 1.25, { minAbs, onPrepare: (...args) => prepared.push(args) },
+		const u = await mount(f, 1.25, { onPrepare: recordPrepare(prepared) },
 			{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1, min: -32, max: 32 } });
-		assert.deepEqual(prepared, [[u, -8, 8, 4]]);
-		assert.equal(u.scales.y._asinh, 4);
-		checkOracle(u, f, minAbs);
+		assert.deepEqual(prepared, [[u, -8, 8, .125]]);
+		assert.equal(u.scales.y._asinh, .125);
+		checkOracle(u, f);
 		f = edgeFixture([-32, -16, -8, .25, .5, 1], f.grid.y, () => true);
 		u.setData(f.data); await Promise.resolve();
-		assert.deepEqual(prepared.at(-1), [u, -32, 1, 8]);
-		checkOracle(u, f, minAbs);
+		assert.deepEqual(prepared.at(-1), [u, -32, 1, .25]);
+		checkOracle(u, f);
 		for (const facet of [1, 2]) f.data[1][facet].forEach((v, i, a) => { a[i] = v / 4; });
 		f.yEdges = f.yEdges.map(v => v / 4);
 		u.setData(f.data, false);
 		assert.equal(u.cursor.dataIdx(u, 1), null, 'deferred setData invalidates cached hover');
-		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
+		assert.deepEqual(prepared.at(-1), [u, -8, .25, .0625]);
 		u.redraw(); await Promise.resolve();
 		assert.equal(prepared.length, 3);
-		checkOracle(u, f, minAbs);
+		checkOracle(u, f);
 		u.setSize({ width: 317, height: 213 });
 		u.setScale('y', { min: -16, max: 16 });
 		await Promise.resolve();
 		u.redraw(); await Promise.resolve();
-		checkOracle(u, f, minAbs);
+		checkOracle(u, f);
 		assert.equal(prepared.length, 3);
-		const skipped = edgeFixture([-2, -1, -.5, .5, 1, 2], f.grid.y, () => true);
-		u.setData(skipped.data); await Promise.resolve();
-		assert.deepEqual(prepared.at(-1), [u, -2, 2, 1]);
-		checkOracle(u, skipped, minAbs);
+		const smaller = edgeFixture([-2, -1, -.5, .5, 1, 2], f.grid.y, () => true);
+		u.setData(smaller.data); await Promise.resolve();
+		assert.deepEqual(prepared.at(-1), [u, -2, 2, .5]);
+		checkOracle(u, smaller);
 		u.setData(empty()); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, null, null, 1]);
 		assert.deepEqual(rects(u), []);
 		hover(u, .5, -3, null);
 		u.setData(f.data); await Promise.resolve();
-		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
-		assert.equal(u.scales.y._asinh, 4);
-		checkOracle(u, f, minAbs);
+		assert.deepEqual(prepared.at(-1), [u, -8, .25, .0625]);
+		assert.equal(u.scales.y._asinh, .0625);
+		checkOracle(u, f);
 	});
 
 	it('bounds signed IDs by actual nearest edges and reuses their buffer through initially empty, grow, shrink, and empty data', () => {
 		const prepared = [];
 		const { u, plugin, projected } = isolated({ xSize: 1, grid: { y: { distr: 3, factor: 2 } },
-			onPrepare: (...args) => prepared.push(args) });
+			onPrepare: recordPrepare(prepared) });
 		try {
 			trackTyped(allocations => {
 				plugin.hooks.setData(u);
@@ -1035,8 +1114,7 @@ describe('heatmapPlugin uniform grid', () => {
 			(col, row) => col != 2 && row != 2, 64);
 		const rows = new Set(f.data[1][1]).size, columns = 63;
 		const log = Math.log, abs = Math.abs;
-		let logs = 0, absolutes = 0, lowerReads = 0, upperReads = 0, minAbsReads = 0, clampReads = 0;
-		let optionMinAbs = 2;
+		let logs = 0, absolutes = 0, lowerReads = 0, upperReads = 0, clampReads = 0;
 		const data = [null, [...f.data[1]]];
 		data[1][1] = new Proxy(data[1][1], { get(target, key) {
 			if (/^\d+$/.test(String(key))) lowerReads++;
@@ -1048,9 +1126,7 @@ describe('heatmapPlugin uniform grid', () => {
 		} });
 		const prepared = [];
 		const { u, plugin, projected, drawn } = isolated({ xSize: 1, grid: f.grid,
-			get minAbs() { minAbsReads++; return optionMinAbs; }, onPrepare: (...args) => prepared.push(args) }, data);
-		assert.equal(minAbsReads, 1, 'minAbs is captured during plugin initialization');
-		optionMinAbs = 0;
+			onPrepare: recordPrepare(prepared) }, data);
 		u.scales.y = { distr: 4, get clamp() { clampReads++; throw new Error('Plugin must not access scale.clamp'); } };
 		try {
 			Math.log = value => { logs++; return log(value); };
@@ -1060,12 +1136,11 @@ describe('heatmapPlugin uniform grid', () => {
 				assert.ok(logs <= rows + 3, 'logarithms scale with unique rows, not cells');
 				assert.ok(absolutes <= 3 * rows + 2, 'threshold absolute values are computed once per unique row');
 				assert.ok(lowerReads <= f.cells.length + columns * 8, 'nearest-edge searches are per-run binary searches, not another cell scan');
-				assert.equal(upperReads, 2 * columns + rows, 'upper bounds are read only for run endpoints, nearest negative edges, and unique rows');
-				assert.deepEqual(prepared, [[u, -16, 16, 4]]);
-				assert.equal(minAbsReads, 1);
+				assert.ok(upperReads <= 2 * columns + rows, 'upper bounds are read only for run endpoints, nearest negative edges, and unique rows');
+				assert.deepEqual(prepared, [[u, -16, 16, .0625]]);
 				assert.equal(clampReads, 0);
 				assert.deepEqual(allocations.map(([name, a]) => [name, a.byteLength]), [['Uint32Array', f.cells.length * 4]]);
-				f.cells.forEach(({ row }, i) => assert.equal(allocations[0][1][i], row, 'hidden cells retain their original grid row IDs'));
+				f.cells.forEach(({ row }, i) => assert.equal(allocations[0][1][i], row, 'source cells retain their original grid row IDs'));
 				const preparedLogs = logs, preparedAbs = absolutes;
 				const coordinates = u.data;
 				u.data = [null, [...coordinates[1].slice(0, 3).map(a => new Proxy(a, { get() {
@@ -1079,11 +1154,10 @@ describe('heatmapPlugin uniform grid', () => {
 						assert.deepEqual(projected.y, f.yEdges);
 						assert.equal(logs, preparedLogs);
 						assert.equal(absolutes, preparedAbs);
-						assert.equal(minAbsReads, 1);
 						assert.equal(clampReads, 0);
 						assert.equal(prepared.length, 1);
 					}
-					pixelQuery(u, .5, 99, null);
+					pixelQuery(u, 2.5, 99, null); // Missing column.
 					assert.deepEqual(u.cursor.points.bbox(u, 1), { left: -10, top: -10, width: 0, height: 0 });
 					pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
 					assert.equal(u.cursor.dataIdx(u, 1), f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
@@ -1092,16 +1166,15 @@ describe('heatmapPlugin uniform grid', () => {
 				});
 				assert.equal(allocations.length, 1, 'draw and hover allocate no additional typed indexes');
 				u.data = coordinates;
-				assert.deepEqual(coverage(pathRects(drawn.at(-1))), coverage(oracleRects(u, f, 2).map(b => b.rect)));
+				assert.deepEqual(coverage(pathRects(drawn.at(-1))), coverage(oracleRects(u, f).map(b => b.rect)));
 				for (const next of [empty(), coordinates, coordinates]) {
 					u.data = next;
 					withoutIndexes(() => plugin.hooks.setData(u), true);
 					withoutIndexes(() => plugin.hooks.draw(u));
-					assert.deepEqual(prepared.at(-1), next == coordinates ? [u, -16, 16, 4] : [u, null, null, 1]);
-					assert.equal(minAbsReads, 1, 'changing the original options cannot change the captured cutoff');
+					assert.deepEqual(prepared.at(-1), next == coordinates ? [u, -16, 16, .0625] : [u, null, null, 1]);
 					assert.equal(clampReads, 0);
 				}
-				assert.equal(allocations.length, 1, 'hidden-row state adds no per-cell typed buffers');
+				assert.equal(allocations.length, 1, 'repeated preparation adds no per-cell typed buffers');
 			});
 		}
 		finally { Math.log = log; Math.abs = abs; plugin.hooks.destroy(); }
@@ -1151,30 +1224,29 @@ describe('heatmapPlugin uniform grid', () => {
 		finally { plugin.hooks.destroy(); }
 	});
 
-	it('breaks same-color runs at excluded and zero-height rows even when their pixel edges touch', () => {
+	it('breaks same-color runs at zero-height rows even when their pixel edges touch', () => {
 		const f = fixture({ nx: 1, ny: 8, y: { distr: 1 }, yOrigin: -4, ySize: 1, include: () => true });
 		const selected = [];
-		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, minAbs: 1,
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid,
 			colorIdx: count => { selected.push(count); return 0; } }, f.data);
 		try {
 			plugin.hooks.setData(u);
 			for (const [pixels, expected, counts] of [
-				[[54, 53, 52, 51, 50, 49, 48, 47, 46], [[0, 51, 1, 3], [0, 46, 1, 3]], [1, 2, 3, 6, 7, 8]],
+				[[54, 53, 52, 51, 50, 49, 48, 47, 46], [[0, 46, 1, 8]], [1, 2, 3, 4, 5, 6, 7, 8]],
 				[[100, 99, 98, 97, 97, 97, 96, 96, 95], [[0, 97, 1, 3], [0, 96, 1, 1], [0, 95, 1, 1]], [1, 2, 3, 6, 8]],
 			]) {
 				u.valToPos = (v, key) => key == 'x' ? v : pixels[v + 4];
 				drawn.length = selected.length = 0;
 				plugin.hooks.draw(u);
 				assert.deepEqual(drawn.flatMap(pathRects), expected);
-				assert.deepEqual(selected, counts, 'excluded and collapsed source cells do not select colors');
-				const boxes = oracleRects(u, f, 1);
+				assert.deepEqual(selected, counts, 'collapsed source cells do not select colors');
+				const boxes = oracleRects(u, f);
 				for (const { id, rect: [x, y, w, h] } of boxes) {
 					pixelQuery(u, x + w / 2, y + h / 2, id);
 					assert.deepEqual(u.cursor.points.bbox(u, 1), { left: x, top: y, width: w, height: h });
 					for (const py of [y, y + h])
 						pixelQuery(u, .5, py, oracleHit(boxes, .5, py));
 				}
-				if (pixels[3] != pixels[5]) pixelQuery(u, .5, 50, null);
 			}
 		}
 		finally { plugin.hooks.destroy(); }
@@ -1989,42 +2061,50 @@ describe('heatmap cells demo integration', () => {
 
 	for (const signed of [false, true]) {
 		for (const mode of signed ? ['linear', 'asinh'] : ['log', 'linear', 'asinh']) {
-			it(`applies demo minAbs to ${signed ? 'signed' : 'positive'} data on ${mode} display`, async () => {
+			it(`retains tiny regular rows in ${signed ? 'signed' : 'positive'} data on ${mode} display`, async () => {
 				const root = createDemoRoot();
 				root.querySelector('#signed-data').checked = signed;
 				root.querySelector('#y-scale').value = mode;
-				const cutoff = demoMinAbs;
-				const lo = [cutoff / 4, cutoff / 2, cutoff, cutoff * 2, cutoff * 4];
+				const unit = 2 ** -130;
+				const lo = [unit, 2 * unit, 4 * unit, 8 * unit, 16 * unit];
 				const frames = framesFor([lo.map(() => 60000), lo, lo.map(v => v * 2), lo.map((_, i) => i + 1)]);
 				let demo;
 				try {
 					demo = createDemo(root, frames); await Promise.resolve();
 					const u = demo.plot, snapshot = structuredClone(u.data);
 					assert.equal(u.data[1][0].length, lo.length * (signed ? 2 : 1));
-					assert.equal(u.scales.y.asinh(u, 'y'), cutoff * 2, 'edges equal to minAbs do not qualify on any display');
-					if (mode == 'asinh') assert.equal(u.scales.y._asinh, cutoff * 2);
-					const prepared = [signed ? -8 * cutoff : mode == 'log' ? cutoff / 4 : 0, 8 * cutoff];
+					assert.equal(u.scales.y.asinh(u, 'y'), unit);
+					if (mode == 'asinh') assert.equal(u.scales.y._asinh, unit);
+					const prepared = [signed ? -32 * unit : mode == 'log' ? unit : 0, 32 * unit];
 					assert.deepEqual(u.scales.y.scan(u, 'y'), mode == 'linear' ? prepared : [null, null]);
 					if (mode == 'linear') assert.deepEqual([u.scales.y.min, u.scales.y.max], linearDemoBounds(u, ...prepared));
 					else assert.deepEqual(u.scales.y.range(u, null, null, 'y'), prepared);
-					checkOracle(u, sourceFixture(u.data, 60), cutoff);
+					checkOracle(u, sourceFixture(u.data, 60));
 					checkDemoColors(u, root.querySelector('#color-scale').value, 1, 5);
-					for (const sign of signed ? [-1, 1] : [1]) hover(u, 30, sign * cutoff * .75, null);
+					for (const sign of signed ? [-1, 1] : [1]) {
+						const y = sign * 3 * unit;
+						const id = u.data[1][1].findIndex((lo, i) => lo < y && y < u.data[1][2][i]);
+						assert.ok(id >= 0);
+						const drawable = bounds(u, id, true, 60)[3] > 0;
+						// Automatic linear ticks can collapse the tiny rows to a single pixel.
+						if (mode != 'linear') assert.ok(drawable);
+						if (drawable) hover(u, 30, y, id);
+					}
 					u.setSize({ width: 777, height: 413 }); await Promise.resolve();
-					checkOracle(u, sourceFixture(u.data, 60), cutoff);
+					checkOracle(u, sourceFixture(u.data, 60));
 					assert.deepEqual(u.data, snapshot);
-					const skipped = signed ? [null, [[60, 60], [-cutoff, cutoff / 2], [-cutoff / 2, cutoff], [1, 1]]] :
-						[null, [[60], [cutoff / 2], [cutoff], [1]]];
-					u.setData(skipped); await Promise.resolve();
-					assert.equal(u.scales.y.asinh(u, 'y'), 1, 'all-skipped data uses fallback 1');
-					checkOracle(u, sourceFixture(skipped, 60), cutoff);
-					assert.deepEqual(rects(u), []);
+					const replacement = signed ? [null, [[60, 60], [-4 * unit, 2 * unit], [-2 * unit, 4 * unit], [1, 1]]] :
+						[null, [[60], [2 * unit], [4 * unit], [1]]];
+					u.setData(replacement); await Promise.resolve();
+					assert.equal(u.scales.y.asinh(u, 'y'), 2 * unit);
+					checkOracle(u, sourceFixture(replacement, 60));
+					if (mode != 'linear') assert.ok(rects(u).length > 0);
 					u.setData(empty()); await Promise.resolve();
 					assert.equal(u.scales.y.asinh(u, 'y'), 1);
 					assert.deepEqual(rects(u), []);
 					u.setData(snapshot); await Promise.resolve();
-					assert.equal(u.scales.y.asinh(u, 'y'), cutoff * 2);
-					checkOracle(u, sourceFixture(snapshot, 60), cutoff);
+					assert.equal(u.scales.y.asinh(u, 'y'), unit);
+					checkOracle(u, sourceFixture(snapshot, 60));
 				}
 				finally { demo?.destroy(); root.remove(); }
 			});

@@ -15,22 +15,23 @@ const args = process.argv.slice(2);
 assert.ok(args.every(arg => arg == '--quick'), 'Only --quick is supported');
 const quick = args.includes('--quick');
 const warmups = quick ? 2 : 5, samples = quick ? 5 : 15, repeats = quick ? 2 : 6;
-const minAbs = 2 ** -128;
+
 const root = new URL('../', import.meta.url);
 const source = readFileSync(new URL('demos/lib/heatmapPlugin.js', root), 'utf8');
 let candidate = source;
-// Remove only threshold accumulation, not hidden-row handling or signed-grid searches.
-for (const text of [
-	'\t\tlet asinhThreshold = Infinity;\n',
-	'\t\t\t\tif (absBottom > minAbs)\n\t\t\t\t\tasinhThreshold = Math.min(asinhThreshold, absBottom);\n',
-	'\t\t\t\tif (absTop > minAbs)\n\t\t\t\t\tasinhThreshold = Math.min(asinhThreshold, absTop);\n',
-]) {
-	assert.equal(candidate.split(text).length, 2, 'Plugin changed; review the benchmark-only transformation');
-	candidate = candidate.replace(text, '');
-}
-const notification = 'onPrepare?.(u, minY, maxY, asinhThreshold == Infinity ? 1 : asinhThreshold);';
-assert.equal(candidate.split(notification).length, 2);
-candidate = candidate.replace(notification, 'onPrepare?.(u, minY, maxY);');
+// Keep the signed nearest-edge search: it also defines the grid coordinates.
+const unsignedThreshold = `\t\t\t\tif (!signed) {
+					const absBottom = Math.abs(bottom), absTop = Math.abs(top);
+					if (absBottom > 0)
+						minAbsEdge = Math.min(minAbsEdge, absBottom);
+					if (absTop > 0)
+						minAbsEdge = Math.min(minAbsEdge, absTop);
+				}\n`;
+				assert.equal(candidate.split(unsignedThreshold).length, 2, 'Plugin changed; review the benchmark-only transformation');
+				candidate = candidate.replace(unsignedThreshold, '');
+				const thresholdArg = 'minAbsEdge == Infinity ? 1 : minAbsEdge';
+assert.equal(candidate.split(thresholdArg).length, 2, 'Plugin changed; review the onPrepare threshold argument');
+candidate = candidate.replace(thresholdArg, 'undefined');
 const { heatmapPlugin: withoutThreshold } = await import(`data:text/javascript;base64,${Buffer.from(candidate).toString('base64')}`);
 const variants = [
 	{ name: 'plugin-threshold', factory: heatmapPlugin, adaptive: false },
@@ -80,7 +81,7 @@ function fixture(columns, signed = false) {
 		maxY = Math.max(maxY, cells[2][i]);
 		threshold = Math.min(threshold, Math.abs(cells[1][i]), Math.abs(cells[2][i]));
 	}
-	assert.ok(threshold / 2 > minAbs, 'Core cutoff 0 and plugin cutoff must be equivalent for these fixtures');
+	assert.ok(threshold > 0 && Number.isFinite(threshold), 'Fixtures contain only nonzero regular edges');
 	return {
 		name: `${columns}-columns-${signed ? 'mirrored' : 'positive'}`,
 		cells, shifted: [cells[0], cells[1].map(v => v / 2), cells[2].map(v => v / 2), cells[3]],
@@ -95,7 +96,7 @@ async function mount(f, variant) {
 	const xRange = [f.cells[0][0] - f.xSize, f.cells[0].at(-1)];
 	const yRange = [0, 1];
 	const plugin = variant.factory({
-		xSize: f.xSize, minAbs, grid: { x: { distr: 1 }, y: f.gridY },
+		xSize: f.xSize, grid: { x: { distr: 1 }, y: f.gridY },
 		onPrepare(u, minY, maxY, value) {
 			prepared++;
 			threshold = value;
@@ -105,7 +106,7 @@ async function mount(f, variant) {
 	});
 	const y = { distr: 4, log: 2, scan: false, range: () => yRange };
 	// Explicitly request core scanning: scan:false now defaults omitted asinh to 1.
-		y.asinh = variant.adaptive ? (u, key) => uPlot.scan(u, key, null, null, true)[2] ?? 1 : () => threshold;
+	y.asinh = variant.adaptive ? (u, key) => uPlot.scan(u, key, null, null, true)[2] ?? 1 : () => threshold;
 	const u = new uPlot({
 		mode: 2, width: 1000, height: 560, pxRatio: 1,
 		axes: [], padding: [0, 0, 0, 0], legend: { show: false },
@@ -238,8 +239,8 @@ const report = {
 		candidatePluginHash: sha256(candidate),
 	},
 	protocol: { warmups, samples, repeats, alternatingOrder: true, width: 1000, height: 560, pxRatio: 1,
-		minAbs, generationTimed: false, coverage: false, drawing: 'checksum paths/context; CPU geometry only',
-		notes: 'Both arms disable range scans and use range functions. Core arm removes plugin threshold accumulation only and explicitly calls the cached core scanner for asinh, since scan:false disables default adaptive selection. Cold threshold invalidation and chart destruction are outside timing. Warm callback measurements batch 20000 calls. setData alternates prebuilt original/halved Y bounds and awaits each commit. Redraw uses redraw(). Initialization includes mount, first draw, and a completion assertion. Proxies run after all timed cases on separate instances to avoid contaminating JIT feedback. All fixture edges exceed both cutoffs.' },
+		generationTimed: false, coverage: false, drawing: 'checksum paths/context; CPU geometry only',
+		notes: 'Both arms disable range scans and use range functions. Core arm removes plugin threshold accumulation only and explicitly calls the cached core scanner for asinh, since scan:false disables default adaptive selection. Cold threshold invalidation and chart destruction are outside timing. Warm callback measurements batch 20000 calls. setData alternates prebuilt original/halved Y bounds and awaits each commit. Redraw uses redraw(). Initialization includes mount, first draw, and a completion assertion. Proxies run after all timed cases on separate instances to avoid contaminating JIT feedback. Signed grid construction needs the per-column nearest-edge search in both arms. Fixtures have regular nonzero edges only, so the core scanner and plugin thresholds agree.' },
 	cases: [],
 };
 const fixtures = [fixture(64), fixture(2569), fixture(2569, true)];

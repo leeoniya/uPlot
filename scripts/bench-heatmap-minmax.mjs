@@ -1,7 +1,7 @@
 // node scripts/bench-heatmap-minmax.mjs [--quick] [--reverse]
 // bun scripts/bench-heatmap-minmax.mjs [--quick] [--reverse]
 // Run engines sequentially on an idle machine; repeat each engine at least three times.
-// Only compare the plugin's two asinh-threshold Math.min updates with conditions.
+// Compare Math.min with conditions only where the plugin collects regular edges for asinh.
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -38,44 +38,64 @@ function replaceOnce(text, before, after, label) {
 let candidate = source;
 for (const edge of ['Bottom', 'Top']) {
 	candidate = replaceOnce(candidate,
-		`if (abs${edge} > minAbs)\n\t\t\t\t\tasinhThreshold = Math.min(asinhThreshold, abs${edge});`,
-		`if (abs${edge} > minAbs && abs${edge} < asinhThreshold)\n\t\t\t\t\tasinhThreshold = abs${edge};`,
+		`if (abs${edge} > 0)\n\t\t\t\t\t\tminAbsEdge = Math.min(minAbsEdge, abs${edge});`,
+		`if (abs${edge} > 0 && abs${edge} < minAbsEdge)\n\t\t\t\t\t\tminAbsEdge = abs${edge};`,
 		`threshold abs${edge}`);
 }
+candidate = replaceOnce(candidate, 'minAbsEdge = Math.min(minAbsEdge, -edge);',
+	'if (-edge < minAbsEdge) minAbsEdge = -edge;', 'nearest negative edge');
+candidate = replaceOnce(candidate, 'if (split < end)\n\t\t\t\t\tminAbsEdge = Math.min(minAbsEdge, yMin[split]);',
+	`if (split < end) {
+					const edge = yMin[split];
+					if (edge < minAbsEdge) minAbsEdge = edge;
+				}`, 'nearest positive edge');
 // Expose preparation state for untimed equivalence checks. The hot path is unchanged.
 function observable(text) {
 	return replaceOnce(text, '\t\t\tsetData: prepare,', `\t\t\tsetData: prepare,
 			benchSnapshot: () => ({
 				x: [x.origin, x.step, x.invStep, x.count, x.values.slice()],
 				y: [y.origin, y.step, y.invStep, y.count, y.values.slice()],
-				starts: starts.slice(), cellRows: cellRows.slice(0, length), hiddenMin, hiddenMax,
+				starts: starts.slice(), cellRows: cellRows.slice(0, length), zeroRow,
 			}),`, 'untimed preparation snapshot');
 }
 const moduleUrl = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`;
 const factories = [];
 for (const text of [source, candidate]) factories.push((await import(moduleUrl(observable(text)))).heatmapPlugin);
 
-// Extract the exact threshold block for an isolated loop over first-seen distinct rows.
-// Map lookup, grid transforms, and hidden-row handling are deliberately excluded here.
-function thresholdLoop(text) {
-	const start = '\t\t\t\tconst absBottom = Math.abs(bottom), absTop = Math.abs(top);';
-	const end = '\t\t\t\tif (Math.max(absBottom, absTop) <= minAbs) {';
-	assert.equal(text.split(start).length, 2, 'Threshold block start changed');
-	assert.equal(text.split(end).length, 2, 'Threshold block end changed');
-	const a = text.indexOf(start), b = text.indexOf(end);
+// Extract the production math, leaving fixture preparation and row/column discovery outside timing.
+function blockInside(text, before, after) {
+	assert.equal(text.split(before).length, 2, `Review threshold block after ${before}`);
+	assert.equal(text.split(after).length, 2, `Review threshold block before ${after}`);
+	const a = text.indexOf(before) + before.length, b = text.indexOf(after);
 	assert.ok(b > a);
-	const block = text.slice(a, b);
-	assert.ok(!block.includes('for (') && !block.includes('while ('), 'Review threshold extraction');
-	return new Function('bottoms', 'tops', 'minAbs', `
-		let asinhThreshold = Infinity;
+	return text.slice(a, b);
+}
+function unsignedLoop(text) {
+	const block = blockInside(text, '\n\t\t\t\tif (!signed) {', '\n\t\t\t\t}\n\t\t\t}\n\t\t\tcellRows[i]');
+	return new Function('{bottoms, tops}', `
+		let minAbsEdge = Infinity;
 		for (let i = 0; i < bottoms.length; i++) {
 			const bottom = bottoms[i], top = tops[i];
 ${block}
 		}
-		return asinhThreshold == Infinity ? 1 : asinhThreshold;
+		return minAbsEdge == Infinity ? 1 : minAbsEdge;
 	`);
 }
-const isolated = [source, candidate].map(thresholdLoop);
+async function signedLoop(text) {
+	const block = blockInside(text, '\n\t\t\tif (signed) {', '\n\t\t\t}\n\t\t\tstart = end;');
+	const { bisect } = await import(moduleUrl(text + '\nexport { bisect };'));
+	return new Function('bisect', '{data, starts}', `
+		const [, yMin, yMax] = data[1];
+		let minAbsEdge = Infinity, zeroMin, zeroMax;
+		for (let col = 0; col + 1 < starts.length; col++) {
+			const start = starts[col], end = starts[col + 1];
+${block}
+		}
+		return minAbsEdge == Infinity ? 1 : minAbsEdge;
+	`).bind(null, bisect);
+}
+const unsigned = [source, candidate].map(unsignedLoop);
+const signed = await Promise.all([source, candidate].map(signedLoop));
 
 // Use the existing DOM setup, but replace canvas recorders with checksum-only drawing.
 await import('./instrument.mjs');
@@ -97,7 +117,7 @@ globalThis.Path2D = class {
 	rect(x, y, w, h) { this.count++; this.sum += x + 3 * y + 5 * w + 7 * h; }
 };
 
-function fixture(columns, signed = false, minAbs = 0) {
+function fixture(columns, signed = false, zeroBucket = false) {
 	const frame = generateHeatmapCells({ seed: 1, columns, xGapProbability: .02 })[0];
 	const [times, lo, hi, counts] = frame.data.values;
 	const factor = hi[0] / lo[0];
@@ -114,6 +134,12 @@ function fixture(columns, signed = false, minAbs = 0) {
 			let end = start + 1;
 			while (end < times.length && times[end] == times[start]) end++;
 			for (let i = end - 1; i >= start; i--) add(i, true);
+			if (zeroBucket) {
+				// Narrower than all regular edges: this bucket must not supply the threshold.
+				mirrored[0].push(cells[0][start]);
+				mirrored[1].push(-(2 ** -20)); mirrored[2].push(2 ** -20);
+				mirrored[3].push(1);
+			}
 			for (let i = start; i < end; i++) add(i, false);
 			start = end;
 		}
@@ -121,16 +147,18 @@ function fixture(columns, signed = false, minAbs = 0) {
 	}
 	const shifted = [cells[0], cells[1].map(v => v / 2), cells[2].map(v => v / 2), cells[3]];
 	const frames = [cells, shifted].map(values => {
-		const bottoms = [], tops = [], seen = new Set();
+		const bottoms = [], tops = [], starts = [], seen = new Set();
 		let minY = Infinity, maxY = -Infinity, threshold = Infinity;
 		for (let i = 0; i < values[0].length; i++) {
 			const bottom = values[1][i], top = values[2][i];
 			assert.ok(Number.isFinite(bottom) && Number.isFinite(top) && bottom < top);
 			minY = Math.min(minY, bottom);
 			maxY = Math.max(maxY, top);
-			for (const edge of [bottom, top]) {
-				const abs = Math.abs(edge);
-				if (abs > minAbs) threshold = Math.min(threshold, abs);
+			if (i == 0 || values[0][i] != values[0][i - 1]) starts.push(i);
+			if (!(signed && bottom < 0 && top > 0)) {
+				for (const edge of [bottom, top]) {
+					if (edge != 0) threshold = Math.min(threshold, Math.abs(edge));
+				}
 			}
 			if (!seen.has(bottom)) {
 				seen.add(bottom);
@@ -138,9 +166,10 @@ function fixture(columns, signed = false, minAbs = 0) {
 				tops.push(top);
 			}
 		}
-		return { data: [null, values], bottoms, tops, minY, maxY, threshold: threshold == Infinity ? 1 : threshold };
+		starts.push(values[0].length);
+		return { data: [null, values], starts, bottoms, tops, minY, maxY, threshold: threshold == Infinity ? 1 : threshold };
 	});
-	return { name: `${columns}-${signed ? 'signed' : 'positive'}-cutoff-${minAbs}`, columns, minAbs, frames,
+	return { name: `${columns}-${signed ? 'signed' : 'positive'}${zeroBucket ? '-zero-bucket' : ''}`, columns, signed, frames,
 		xSize: frame.schema.fields[0].config.interval / 1000,
 		gridY: signed ? { distr: 3, factor } : { distr: 3 } };
 }
@@ -150,7 +179,7 @@ async function mount(f, factory) {
 	const xRange = [cells[0][0] - f.xSize, cells[0].at(-1)], yRange = [0, 1];
 	const prepared = [null, null, 1];
 	let prepares = 0, draws = 0;
-	const plugin = factory({ xSize: f.xSize, grid: { y: f.gridY }, minAbs: f.minAbs,
+	const plugin = factory({ xSize: f.xSize, grid: { y: f.gridY },
 		onPrepare(u, minY, maxY, threshold) {
 			prepares++;
 			prepared[0] = minY; prepared[1] = maxY; prepared[2] = threshold;
@@ -193,27 +222,29 @@ async function benchmark(f) {
 	const states = [];
 	for (const factory of factories) states.push(await mount(f, factory));
 	const timings = {};
+	const isolated = f.signed ? signed : unsigned;
+	const isolatedStage = f.signed ? 'isolated-column-threshold' : 'isolated-distinct-row-threshold';
 	try {
 		for (const frame of [...f.frames, f.frames[0]]) {
 			const outputs = [];
 			for (let vi = 0; vi < 2; vi++) {
-				assert.equal(isolated[vi](frame.bottoms, frame.tops, f.minAbs), frame.threshold);
+				assert.equal(isolated[vi](frame), frame.threshold);
 				states[vi].u.setData(frame.data);
 				await Promise.resolve();
 				outputs.push(validate(states[vi], f, frame));
 			}
 			assert.deepEqual(outputs[0], outputs[1], 'Same preparation arrays, threshold, ranges, and geometry');
 		}
-		for (const stage of ['isolated-distinct-row-threshold', 'plugin-prepare', 'setData-cpu']) {
+		for (const stage of [isolatedStage, 'plugin-prepare', 'setData-cpu']) {
 			async function batch(vi, iterations) {
 				const state = states[vi], fn = isolated[vi];
 				const beforePrepares = state.prepares, beforeDraws = state.draws;
 				let value = 0;
 				const start = performance.now();
-				if (stage == 'isolated-distinct-row-threshold') {
+				if (stage == isolatedStage) {
 					for (let i = 0; i < iterations; i++) {
 						const frame = f.frames[i & 1];
-						value = fn(frame.bottoms, frame.tops, f.minAbs);
+						value = fn(frame);
 					}
 				}
 				else if (stage == 'plugin-prepare') {
@@ -234,7 +265,7 @@ async function benchmark(f) {
 				// Assertions, snapshots, and the observable sink are outside the timing window.
 				const frame = f.frames[(iterations - 1) & 1];
 				assert.equal(value, frame.threshold);
-				if (stage != 'isolated-distinct-row-threshold') {
+				if (stage != isolatedStage) {
 					assert.equal(state.prepares - beforePrepares, iterations);
 					assert.deepEqual(state.prepared, [frame.minY, frame.maxY, frame.threshold]);
 				}
@@ -269,7 +300,7 @@ async function benchmark(f) {
 	}
 	finally { for (const state of states) state.u.destroy(); }
 	return { name: f.name, cells: f.frames[0].data[1][0].length, distinctRows: f.frames[0].bottoms.length,
-		minAbs: f.minAbs, thresholds: f.frames.map(frame => frame.threshold), timings };
+		thresholds: f.frames.map(frame => frame.threshold), timings };
 }
 
 // General min/max rewrites are NOT equivalent for NaN or signed zero.
@@ -278,13 +309,18 @@ assert.equal(NaN < 1 ? NaN : 1, 1);
 assert.ok(Object.is(Math.min(0, -0), -0));
 assert.ok(Object.is(-0 < 0 ? -0 : 0, 0));
 assert.ok(Object.is(Math.max(-0, 0), 0));
-// These two threshold updates are narrower: abs() removes -0, and > minAbs rejects NaN.
-// Also check empty/all-excluded fallback and the strict cutoff, outside timing.
-for (const [bottoms, tops, cutoff, expected] of [
-	[[], [], 0, 1], [[NaN, -0, -2], [NaN, 0, 4], 0, 2],
-	[[-2, 2], [-1, 4], 2, 4], [[-2], [2], 2, 1], [[-Infinity], [Infinity], 0, 1],
+// The unsigned loop ignores zero edges; no finite qualifying magnitude gives fallback 1.
+for (const [bottoms, tops, expected] of [
+	[[], [], 1], [[-0], [0], 1], [[NaN, -0, -2], [NaN, 0, 4], 2], [[-Infinity], [Infinity], 1],
 ]) {
-	for (const fn of isolated) assert.equal(fn(bottoms, tops, cutoff), expected);
+	for (const fn of unsigned) assert.equal(fn({ bottoms, tops }), expected);
+}
+// The mirrored timing fixtures have equal minima on both sides. Check each side independently, too.
+for (const [bottoms, tops, expected] of [
+	[[-4, -.25], [-2, .25], 2], [[-.25, 4], [.25, 8], 4], [[-.25], [.25], 1],
+]) {
+	const frame = { data: [null, [null, bottoms, tops]], starts: [0, bottoms.length] };
+	for (const fn of signed) assert.equal(fn(frame), expected);
 }
 
 const started = performance.now();
@@ -299,17 +335,17 @@ const report = {
 	protocol: {
 		warmups, samples, targetMs, reverse, alternatingOrder: true, seed: 1, xGapProbability: .02,
 		generationTimed: false, proxies: false, coverage: false, width: 1000, height: 560, pxRatio: 1,
-		scope: 'Only the two asinhThreshold Math.min updates change. All other plugin/core min/max calls remain unchanged.',
-		isolated: 'Exact extracted threshold block, first-seen distinct rows in plugin order. No Map, grid, hidden-row, or per-cell loop cost.',
+		scope: 'Only regular-edge minima change: per distinct row on unsigned grids and per occupied column on signed grids. Signed grid geometry also uses the nearest edge.',
+		isolated: 'Unsigned: extracted threshold block over first-seen distinct rows. Signed: extracted nearest-edge search over sorted cells with prebuilt column offsets. Neither includes grid construction.',
 		prepare: 'Actual plugin setData hook on mounted charts; prebuilt original/halved edges alternate. No scale commit or drawing.',
 		setData: 'Actual u.setData plus awaited commit, CPU geometry and checksum canvas. No GPU; not browser frame time.',
 		threshold: 'Both arms use scan:false with explicit asinh callback fed by onPrepare. No core adaptive case.',
-		semantics: 'Math.min/max generally propagate NaN and select signed zero, unlike strict comparisons. Here Math.abs removes negative zero, > minAbs rejects NaN, and Infinity falls back to 1. Finite numeric plugin fixtures and nonnegative cutoff only; this is not evidence for a broad min/max rewrite.',
+		semantics: 'Math.min/max generally propagate NaN and select signed zero, unlike strict comparisons. Fixtures have finite edges; only nonzero regular magnitudes contribute. Infinity means no regular edge was found and falls back to 1. This is not evidence for a broad min/max rewrite.',
 	},
 	cases: [],
 };
-// The nonzero cutoff is an exact grid edge, including after halving the Y edges.
-const fixtures = [fixture(64), fixture(2569), fixture(2569, true), fixture(2569, true, 2 ** -10)];
+
+const fixtures = [fixture(64), fixture(2569), fixture(2569, true), fixture(2569, true, true)];
 for (const f of fixtures) {
 	const result = await benchmark(f);
 	report.cases.push(result);

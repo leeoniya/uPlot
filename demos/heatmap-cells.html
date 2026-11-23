@@ -22,8 +22,17 @@
 	<body>
 		<main id="demo">
 			<h1>Sparse heatmap · mode: 2</h1>
-			<p>This demo uses a deterministic synthetic dataset of ~250k generated cells.</p>
-			<p>About 2% of time columns are entirely missing. Zoom to inspect the gaps.</p>
+			<p>The default dataset has ~250k synthetic cells. About 2% of its time columns are missing. Zoom to inspect the gaps.</p>
+			<div class="controls">
+				<label for="dataset">Dataset</label>
+				<select id="dataset" disabled>
+					<option value="synthetic" selected>Synthetic</option>
+					<option value="snapshot1">Snapshot 1 · zero and positive buckets</option>
+					<option value="snapshot2">Snapshot 2 · negative, zero and positive buckets</option>
+				</select>
+				<button id="set-data" type="button" disabled>setData() — same data</button>
+			</div>
+
 			<p id="status">Generating ~250k synthetic heatmap cells…</p>
 			<div class="controls">
 				<label for="y-scale">Y display scale</label>
@@ -48,10 +57,10 @@
 				<label for="cell-gap">Cell gap</label>
 				<input id="cell-gap" type="range" min="0" max="1" step="0.25" value="0" disabled>
 				<output id="cell-gap-value" for="cell-gap">0px</output>
+
 				<label for="height">Chart height</label>
 				<input id="height" type="range" min="200" max="1200" step="10" value="560" disabled>
 				<output id="height-value" for="height">560px</output>
-				<button id="set-data" type="button" disabled>setData() — same data</button>
 			</div>
 			<div id="plot"></div>
 			<div id="legend">

@@ -68,6 +68,150 @@ function assertNativeTimeLabels(u) {
 }
 
 describe('heatmap cells demo', () => {
+	const firstTime = 1780392720;
+	const times = Array.from({ length: 31 }, (_, i) => firstTime + i * 60);
+	const firstPositive = 0.9576032806985735;
+
+	function selectDataset(root, value) {
+		const select = root.querySelector('#dataset');
+		assert.ok(select, 'demo has a dataset selector');
+		select.value = value;
+		assert.equal(select.value, value);
+		select.dispatchEvent(new Event('change'));
+	}
+
+	it('switches synchronously from synthetic to both original snapshots and back', async () => {
+		const root = createDemoRoot();
+		const frames = generateHeatmapCells({ columns: 2 });
+		const select = root.querySelector('#dataset');
+		const signed = root.querySelector('#signed-data');
+
+		const scale = root.querySelector('#y-scale');
+		const logOptions = scale.querySelectorAll('option[value^="log"]');
+		let demo;
+		try {
+			demo = createDemo(root, frames);
+			await Promise.resolve();
+			assert.ok(select, 'demo has a dataset selector');
+			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2']);
+			assert.equal(select.value, 'synthetic');
+			assert.equal(select.disabled, false);
+			const original = demo.plot.data[1];
+			assert.equal(signed.disabled, false);
+
+			let positiveRows;
+			for (const [source, size] of [['snapshot1', 204], ['snapshot2', 377]]) {
+				selectDataset(root, source);
+				const u = demo.plot;
+				const [xs, lo, hi, counts] = u.data[1];
+				assert.equal(xs.length, size);
+				const rows = xs.map((x, i) => [x, lo[i], hi[i], counts[i]]);
+				assert.deepEqual([...new Set(xs)], times);
+				const zero = rows.filter(([, low, high]) => low == -1e-128 && high == 1e-128);
+				assert.deepEqual(zero.map(row => row[0]), times);
+				assert.equal(zero[0][3], 0.9055555555555553);
+				assert.equal(zero.at(-1)[3], 0.9166615741023662);
+				const positive = rows.filter(([, low]) => low > 0);
+				assert.deepEqual(positive[0], [firstTime, firstPositive, 1, 0.5833333333333333]);
+				if (source == 'snapshot1') {
+					assert.equal(positive.length + zero.length, size);
+					positiveRows = positive;
+				}
+				else {
+					assert.deepEqual(positive, positiveRows);
+					const reflected = rows.filter(([, , high]) => high < 0).map(([x, low, high, count]) => [x, -high, -low, count]);
+					assert.deepEqual(reflected.sort((a, b) => a[0] - b[0] || a[1] - b[1]), positiveRows);
+				}
+				await Promise.resolve(); // Flush the plot draw, not the dataset change.
+				assert.deepEqual([u.scales.x.min, u.scales.x.max], [firstTime - 60, times.at(-1)]);
+				assert.equal(scale.value, 'asinh');
+				assert.equal(u.scales.y._asinh, Math.min(...positive.map(row => row[1])), 'the straddling bucket does not set the threshold');
+				for (const option of logOptions) assert.equal(option.disabled, true);
+				assert.equal(signed.disabled, true);
+				assert.equal(signed.checked, false);
+
+				assert.equal(root.querySelectorAll('#plot canvas').length, 1);
+			}
+			selectDataset(root, 'synthetic');
+			assert.deepEqual(demo.plot.data[1], original);
+			assert.equal(signed.disabled, false);
+
+			for (const option of logOptions) assert.equal(option.disabled, false);
+			await Promise.resolve();
+			demo.destroy();
+			demo = null;
+			assert.equal(select.disabled, true);
+			selectDataset(root, 'snapshot1');
+			assert.equal(root.querySelectorAll('#plot canvas').length, 0);
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	for (const source of ['snapshot1', 'snapshot2']) {
+		it(`draws and hit-tests the expanded and clipped zero row in ${source}`, async () => {
+			const root = createDemoRoot();
+			const demo = createDemo(root, generateHeatmapCells({ columns: 2 }));
+			try {
+				await Promise.resolve();
+				selectDataset(root, source);
+				await Promise.resolve();
+				let u = demo.plot;
+				const data = u.data;
+
+				const readout = root.querySelector('#hover');
+				const canvas = u.root.querySelector('canvas');
+				const sx = canvas.width / u.width, sy = canvas.height / u.height;
+				const left = Math.round(u.valToPos(firstTime - 60, 'x', true));
+				const width = Math.round(u.valToPos(firstTime, 'x', true)) - left;
+				const zeroIdx = data[1][1].indexOf(-1e-128);
+				const center = () => Math.round(u.valToPos(0, 'y', true));
+				const zeroRect = () => rectangles(u).find(([x, y, w, h]) => x == left && w == width && y <= center() && center() < y + h);
+				const hover = y => u.setCursor({ left: u.valToPos(firstTime - 30, 'x'), top: y / sy - parseFloat(u.over.style.top) });
+				const checkZero = (top, bottom) => {
+					assert.deepEqual(zeroRect(), [left, top, width, bottom - top]);
+					hover(top + .5 * sy);
+					assert.equal(u.cursor.idxs[1], zeroIdx);
+					assert.match(readout.textContent, /Y: -1e-128–1e-128 · Count: 0\.90556$/);
+					assert.deepEqual(u.cursor.points.bbox(u, 1), {
+						left: left / sx - parseFloat(u.over.style.left), top: top / sy - parseFloat(u.over.style.top),
+						width: width / sx, height: (bottom - top) / sy,
+					});
+				};
+				const range = uPlot.rangeAsinh(Math.min(...data[1][1]), Math.max(...data[1][2]), 2, true);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], range, 'minimum pixel height does not pad the data range');
+				u.over.dispatchEvent(new MouseEvent('mouseenter'));
+
+				checkZero(center() - 2 * sy, center() + 2 * sy);
+
+
+				const scale = root.querySelector('#y-scale');
+				scale.value = 'linear';
+				scale.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				u = demo.plot;
+				u.over.dispatchEvent(new MouseEvent('mouseenter'));
+				if (source == 'snapshot1') {
+					assert.equal(u.scales.y.min, 0);
+					assert.equal(center(), u.bbox.top + u.bbox.height);
+					checkZero(center() - 2 * sy, center() + 2 * sy);
+				}
+				else
+					assert.ok(u.scales.y.min <= Math.min(...data[1][1]));
+
+				// Place the nearest regular edge one CSS pixel from zero.
+				const limit = firstPositive * u.bbox.height / (2 * sy);
+				u.setScale('y', { min: -limit, max: limit });
+				await Promise.resolve();
+				const py = y => Math.round(u.valToPos(y, 'y', true));
+				const top = py(firstPositive);
+				const bottom = source == 'snapshot1' ? center() + 2 * sy : py(-firstPositive);
+				assert.ok(bottom - top < 4 * sy, 'the regular rows limit expansion');
+				checkZero(top, bottom);
+			}
+			finally { demo.destroy(); root.remove(); }
+		});
+	}
+
 	for (const initial of [0, .5]) {
 		it(`updates cell gaps in place from ${initial}px and retains them on plot recreation`, async () => {
 			const root = createDemoRoot();
@@ -790,7 +934,8 @@ describe('heatmap cells demo', () => {
 			assert.ok(root.querySelector('#status').textContent.startsWith(`${xs.length.toLocaleString()} cells · 64 720-minute intervals`));
 			const start = u.scales.x.min, end = u.scales.x.max;
 			assertNativeTimeLabels(u);
-			for (const control of root.querySelectorAll('select, input, button')) assert.equal(control.disabled, false);
+			for (const control of root.querySelectorAll('select, input, button'))
+				assert.equal(control.disabled, false, control.id);
 			const drawn = rectangles(u);
 			assert.ok(drawn.length > 0);
 			const [x, y, w, h] = drawn[Math.floor(drawn.length / 2)];
