@@ -3946,7 +3946,7 @@ export default function uPlot(opts, data, then) {
 		if (dragging && e != null && e.movementX == 0 && e.movementY == 0)
 			return;
 
-		cacheMouse(e, src, _l, _t, _w, _h, _i, false, e != null);
+		cacheMouse(e, src, _l, _t, _w, _h, _i, false, e != null && dragging);
 
 		if (e != null)
 			updateCursor(null, true, true);

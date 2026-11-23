@@ -951,16 +951,16 @@ describe('heatmapPlugin uniform grid', () => {
 		}
 	});
 
-	it('keeps the outer zero bucket height in fractional CSS pixels after resize and DPR changes', async () => {
+	it('keeps the fractional CSS zero height across resize and DPR changes but clips it at explicit zoom limits', async () => {
 		let height = 12.5;
-		const { u, hovered } = await mountZeroBucket([[1, -tiny, tiny], [1, 1, 2]], () => height);
-		u.setScale('y', { min: -.03125, max: 4 }); await Promise.resolve();
-		function checkHeight() {
+		const { u, hovered } = await mountZeroBucket([[1, -tiny, tiny]], () => height);
+		function checkHeight(clippedEdge) {
 			const [x, , w] = bounds(u, 0, true);
 			const center = Math.round(u.valToPos(0, 'y', true));
-			const top = center - height * canvasMapping(u).y / 2;
-			const bottom = Math.min(Math.round(u.height * u.pxRatio), center + height * canvasMapping(u).y / 2);
-			assert.ok(bottom > u.bbox.top + u.bbox.height);
+			const half = height * canvasMapping(u).y / 2;
+			const top = clippedEdge === 'top' ? u.bbox.top : center - half;
+			const bottom = clippedEdge === 'bottom' ? u.bbox.top + u.bbox.height : center + half;
+			if (clippedEdge) assert.ok(bottom - top < 2 * half);
 			const rect = [x, top, w, bottom - top];
 			assert.deepEqual(pathRects(fills(u)[1]), [rect]);
 			checkZeroCursor(u, hovered, x + w / 2, top + 1, 0, rect);
@@ -974,6 +974,10 @@ describe('heatmapPlugin uniform grid', () => {
 		checkHeight();
 		u.setPxRatio(1.25); await Promise.resolve();
 		checkHeight();
+		u.setScale('y', { min: -.03125, max: 4 }); await Promise.resolve();
+		checkHeight('bottom');
+		u.setScale('y', { min: -4, max: .03125 }); await Promise.resolve();
+		checkHeight('top');
 	});
 
 	it('uses true zero bucket bounds above the minimum and resets detection on setData', async () => {

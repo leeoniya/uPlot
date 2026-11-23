@@ -72,6 +72,12 @@ describe('heatmap cells demo', () => {
 	const times = Array.from({ length: 31 }, (_, i) => firstTime + i * 60);
 	const firstPositive = 0.9576032806985735;
 
+	// Initial layout and resize can queue a second uPlot commit once the bbox is known.
+	async function settleLayout() {
+		await Promise.resolve();
+		await Promise.resolve();
+	}
+
 	function selectDataset(root, value) {
 		const select = root.querySelector('#dataset');
 		assert.ok(select, 'demo has a dataset selector');
@@ -122,7 +128,7 @@ describe('heatmap cells demo', () => {
 					const reflected = rows.filter(([, , high]) => high < 0).map(([x, low, high, count]) => [x, -high, -low, count]);
 					assert.deepEqual(reflected.sort((a, b) => a[0] - b[0] || a[1] - b[1]), positiveRows);
 				}
-				await Promise.resolve(); // Flush the plot draw, not the dataset change.
+				await settleLayout(); // Only layout is asynchronous; the data above changed synchronously.
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [firstTime - 60, times.at(-1)]);
 				assert.equal(scale.value, 'asinh');
 				assert.equal(u.scales.y._asinh, Math.min(...positive.map(row => row[1])), 'the straddling bucket does not set the threshold');
@@ -148,68 +154,114 @@ describe('heatmap cells demo', () => {
 	});
 
 	for (const source of ['snapshot1', 'snapshot2']) {
-		it(`draws and hit-tests the expanded and clipped zero row in ${source}`, async () => {
-			const root = createDemoRoot();
-			const demo = createDemo(root, generateHeatmapCells({ columns: 2 }));
-			try {
-				await Promise.resolve();
-				selectDataset(root, source);
-				await Promise.resolve();
-				let u = demo.plot;
-				const data = u.data;
+		for (const mode of ['asinh', 'linear']) {
+			it(`centers the ${source} zero row on the ${mode} scale through resize, zoom, and reset`, async () => {
+				const root = createDemoRoot();
+				root.querySelector('#y-scale').value = mode;
+				const demo = createDemo(root, generateHeatmapCells({ columns: 2 }));
+				try {
+					await settleLayout();
+					selectDataset(root, source);
+					await settleLayout();
+					const u = demo.plot;
+					assert.equal(u.scales.y.distr, mode == 'asinh' ? 4 : 1);
+					const [, lo, hi] = u.data[1];
+					const zeroIdx = lo.indexOf(-1e-128);
+					const canvas = u.root.querySelector('canvas');
+					const sy = () => canvas.height / u.height;
+					const py = y => Math.round(u.valToPos(y, 'y', true));
+					const range = () => [u.scales.y.min, u.scales.y.max];
+					u.over.dispatchEvent(new MouseEvent('mouseenter'));
 
-				const readout = root.querySelector('#hover');
-				const canvas = u.root.querySelector('canvas');
-				const sx = canvas.width / u.width, sy = canvas.height / u.height;
-				const left = Math.round(u.valToPos(firstTime - 60, 'x', true));
-				const width = Math.round(u.valToPos(firstTime, 'x', true)) - left;
-				const zeroIdx = data[1][1].indexOf(-1e-128);
-				const center = () => Math.round(u.valToPos(0, 'y', true));
-				const zeroRect = () => rectangles(u).find(([x, y, w, h]) => x == left && w == width && y <= center() && center() < y + h);
-				const hover = y => u.setCursor({ left: u.valToPos(firstTime - 30, 'x'), top: y / sy - parseFloat(u.over.style.top) });
-				const checkZero = (top, bottom) => {
-					assert.deepEqual(zeroRect(), [left, top, width, bottom - top]);
-					hover(top + .5 * sy);
-					assert.equal(u.cursor.idxs[1], zeroIdx);
-					assert.match(readout.textContent, /Y: -1e-128–1e-128 · Count: 0\.90556$/);
-					assert.deepEqual(u.cursor.points.bbox(u, 1), {
-						left: left / sx - parseFloat(u.over.style.left), top: top / sy - parseFloat(u.over.style.top),
-						width: width / sx, height: (bottom - top) / sy,
-					});
-				};
-				const range = uPlot.rangeAsinh(Math.min(...data[1][1]), Math.max(...data[1][2]), 2, true);
-				assert.deepEqual([u.scales.y.min, u.scales.y.max], range, 'minimum pixel height does not pad the data range');
-				u.over.dispatchEvent(new MouseEvent('mouseenter'));
+					function checkZero(top, bottom) {
+						const left = Math.round(u.valToPos(firstTime - 60, 'x', true));
+						const width = Math.round(u.valToPos(firstTime, 'x', true)) - left;
+						const center = py(0);
+						const rect = rectangles(u).find(([x, y, w, h]) => x == left && w == width && y <= center && center < y + h);
+						assert.deepEqual(rect, [left, top, width, bottom - top]);
+						assert.ok(top >= u.bbox.top && bottom <= u.bbox.top + u.bbox.height, 'the entire zero cell fits inside the plot');
 
-				checkZero(center() - 2 * sy, center() + 2 * sy);
+						const sx = canvas.width / u.width, cssTop = parseFloat(u.over.style.top);
+						for (const edge of [top, bottom]) {
+							const y = center + (edge - center) * .9;
+							u.over.dispatchEvent(new MouseEvent('mousemove', {
+								clientX: u.rect.left + u.valToPos(firstTime - 30, 'x'),
+								clientY: u.rect.top + y / sy() - cssTop,
+							}));
+							const hitY = (cssTop + u.cursor.top) * sy();
+							assert.ok(edge == top ? top < hitY && hitY < center : center < hitY && hitY < bottom);
+							assert.equal(u.cursor.idxs[1], zeroIdx);
+							assert.match(root.querySelector('#hover').textContent, /Y: -1e-128–1e-128 · Count: 0\.90556$/);
+							assert.deepEqual(u.cursor.points.bbox(u, 1), {
+								left: left / sx - parseFloat(u.over.style.left), top: top / sy() - cssTop,
+								width: width / sx, height: (bottom - top) / sy(),
+							});
+						}
+					}
 
+					function checkAuto() {
+						if (source == 'snapshot1') {
+							const pad = u.bbox.top + u.bbox.height - u.valToPos(0, 'y', true);
+							assert.ok(pad >= 2 * sy() - 1e-8 && pad < 2 * sy() + 1, 'half a marker, rounded up to a canvas pixel');
+							const axis = u.axes[1], [incr, space] = axis._found;
+							const ticks = axis.ticks.filter(u, axis._splits, 1, space, incr).filter(v => v != null);
+							assert.ok(ticks.includes(0) && ticks.every(v => v >= 0), 'the pad adds no negative tick');
+						}
+						else {
+							const min = Math.min(...lo), max = Math.max(...hi);
+							if (mode == 'asinh')
+								assert.deepEqual(range(), uPlot.rangeAsinh(min, max, 2, true));
+							else {
+								const expected = rangeY(min, max, u.bbox.height / u.pxRatio);
+								assert.deepEqual(range(), [expected.min, expected.max]);
+							}
+						}
+						checkZero(py(0) - 2 * sy(), py(0) + 2 * sy());
+					}
 
-				const scale = root.querySelector('#y-scale');
-				scale.value = 'linear';
-				scale.dispatchEvent(new Event('change'));
-				await Promise.resolve();
-				u = demo.plot;
-				u.over.dispatchEvent(new MouseEvent('mouseenter'));
-				if (source == 'snapshot1') {
-					assert.equal(u.scales.y.min, 0);
-					assert.equal(center(), u.bbox.top + u.bbox.height);
-					checkZero(center() - 2 * sy, center() + 2 * sy);
+					checkAuto();
+					u.setSize({ width: u.width, height: 280 });
+					await settleLayout();
+					checkAuto();
+
+					if (source == 'snapshot1') {
+						for (const dpr of [1.1, 1.25]) {
+							u.setPxRatio(dpr);
+							await settleLayout();
+							checkAuto();
+						}
+						u.setPxRatio(1);
+						await settleLayout();
+					}
+
+					u.setScale('y', { min: 0, max: 4 });
+					await settleLayout();
+					assert.deepEqual(range(), [0, 4], 'an explicit zero bound is not padded');
+					u.setSize({ width: u.width, height: 720 });
+					await settleLayout();
+					assert.deepEqual(range(), [0, 4], 'resize preserves the explicit range');
+					u.setScale('y', { min: null, max: null });
+					await settleLayout();
+					checkAuto();
+
+					if (mode == 'linear') {
+						const nearestPositive = Math.min(...lo.filter(v => v > 0));
+						const unitsPerPixel = nearestPositive / sy(); // One CSS pixel from zero to the nearest regular edge.
+						// Center on a whole canvas pixel so rounding cannot collapse either half.
+						const aboveZero = Math.round(u.bbox.height / 2);
+						u.setScale('y', { min: (aboveZero - u.bbox.height) * unitsPerPixel, max: aboveZero * unitsPerPixel });
+						await settleLayout();
+						const top = py(nearestPositive);
+						const bottom = source == 'snapshot1' ? py(0) + 2 * sy() : py(Math.max(...hi.filter(v => v < 0)));
+						assert.ok(top > py(0) - 2 * sy(), 'the positive regular row limits expansion');
+						if (source == 'snapshot2')
+							assert.ok(bottom < py(0) + 2 * sy(), 'the negative regular row limits expansion');
+						checkZero(top, bottom);
+					}
 				}
-				else
-					assert.ok(u.scales.y.min <= Math.min(...data[1][1]));
-
-				// Place the nearest regular edge one CSS pixel from zero.
-				const limit = firstPositive * u.bbox.height / (2 * sy);
-				u.setScale('y', { min: -limit, max: limit });
-				await Promise.resolve();
-				const py = y => Math.round(u.valToPos(y, 'y', true));
-				const top = py(firstPositive);
-				const bottom = source == 'snapshot1' ? center() + 2 * sy : py(-firstPositive);
-				assert.ok(bottom - top < 4 * sy, 'the regular rows limit expansion');
-				checkZero(top, bottom);
-			}
-			finally { demo.destroy(); root.remove(); }
-		});
+				finally { demo.destroy(); root.remove(); }
+			});
+		}
 	}
 
 	for (const initial of [0, .5]) {

@@ -6,7 +6,7 @@
 // Explicit grid.y {distr: 3, factor: >1} instead uses signed exponential rows:
 // Regular edges are factor ** integer, mirrored below zero. One shared bucket may straddle zero.
 // zeroHeight is its minimum projected height in CSS pixels (number or (u) => number, default 0).
-// Expand around zero, clipping at regular rows or the canvas edge. Only the outer zero row can overhang the plot.
+// Expand around zero, clipping at regular rows or the plot edge.
 // Grid transforms default to linear X and log Y, independently of the displayed uPlot scales.
 // xSize is the bucket width in transformed X units. Implicit Y width comes from the first cell.
 // cellGap is a CSS-pixel number or (u) => number, read once per draw; it defaults to 0.
@@ -222,8 +222,8 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 		const actual = bottom - top;
 		const height = cssSize(zeroHeight, 'zeroHeight', u) * cssToCanY;
 		if (height <= actual || u.scales.y.min > 0 || u.scales.y.max < 0) return;
-		const lo = p[row + 2] ?? 0;
-		const hi = p[row - 1] ?? Math.round(u.height * u.pxRatio);
+		const lo = p[row + 2] ?? u.bbox.top;
+		const hi = p[row - 1] ?? (u.bbox.top + u.bbox.height);
 		const center = Math.round(u.valToPos(0, 'y', true));
 		p[row + 1] = Math.max(lo, Math.min(top, center - height / 2));
 		p[row] = Math.min(hi, Math.max(bottom, center + height / 2));

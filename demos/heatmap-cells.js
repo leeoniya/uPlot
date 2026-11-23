@@ -1,4 +1,5 @@
 import uPlot from '../src/uPlot.js';
+import { rangeY } from '../src/rangeY.js';
 import { snapshot1, snapshot2 } from './data/heatmap-snapshots.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
 import { logApproxLut } from './lib/heatmapColorLut.js';
@@ -211,6 +212,31 @@ function createView(root, dataset, isSnapshot = false) {
 		const yRange = isLog ? [1, logBase] : [0, 1];
 		const scaleLabel = isLog ? (logBase == 10 ? 'log₁₀' : 'log₂') : mode;
 		let asinhThreshold = 1;
+		const zeroHeight = isSnapshot ? 4 : 0;
+		let zeroEdge = 0, autoBounds;
+
+		function snapshotRange(u) {
+			const { top, height } = u.bbox;
+			let [min, max] = yRange;
+			if (mode == 'linear') {
+				const ticks = rangeY(min, max, height / u.pxRatio || plotHeight);
+				if (ticks != null) ({ min, max } = ticks);
+			}
+			if (zeroEdge != 0 && height > 0) {
+				// The renderer rounds the center to a canvas pixel; use the nearest center that fits.
+				const half = zeroHeight / 2 * Math.round(u.height * u.pxRatio) / u.height;
+				const bottom = top + height;
+				const pad = zeroEdge < 0 ? bottom - Math.floor(bottom - half) : Math.ceil(top + half) - top;
+				if (pad < height) {
+					const far = zeroEdge < 0 ? max : min;
+					const ratio = -pad / (height - pad);
+					const edge = mode == 'asinh' ? asinhThreshold * Math.sinh(Math.asinh(far / asinhThreshold) * ratio) : far * ratio;
+					if (zeroEdge < 0) min = Math.min(min, zeroEdge, edge);
+					else max = Math.max(max, zeroEdge, edge);
+				}
+			}
+			return [min, max];
+		}
 
 		return new uPlot({
 			mode: 2,
@@ -226,9 +252,9 @@ function createView(root, dataset, isSnapshot = false) {
 					distr: isLog ? 3 : mode == 'asinh' ? 4 : 1,
 					log: logBase,
 					asinh: () => asinhThreshold,
-					axis: mode == 'linear' ? 1 : undefined,
-					scan: mode == 'linear' ? () => yRange.slice() : false,
-					range: mode == 'linear' ? undefined : () => yRange,
+					axis: !isSnapshot && mode == 'linear' ? 1 : undefined,
+					scan: !isSnapshot && mode == 'linear' ? () => yRange.slice() : false,
+					range: isSnapshot ? u => autoBounds = snapshotRange(u) : mode == 'linear' ? undefined : () => yRange,
 				},
 			},
 			axes: [
@@ -241,12 +267,20 @@ function createView(root, dataset, isSnapshot = false) {
 					values: (u, splits) => splits.map(v => v == null ? null : formatY(v)),
 				},
 			],
+			hooks: isSnapshot ? { setSize: [u => {
+				// Range callbacks precede layout. Refresh only automatic bounds once the plot height changes.
+				const y = u.scales.y;
+				if (autoBounds != null && y.min === autoBounds[0] && y.max === autoBounds[1]) {
+					const [min, max] = snapshotRange(u);
+					if (y.min !== min || y.max !== max) u.setRange('y', null, null);
+				}
+			}] } : {},
 			series: [{}, { label: 'Heatmap' }],
 			plugins: [heatmapPlugin({
 				xSize,
 
 				cellGap: () => gap,
-				zeroHeight: isSnapshot ? 4 : 0,
+				zeroHeight,
 				grid: isSnapshot || signed.checked ? { y: { distr: 3, factor } } : undefined,
 				colors: palette,
 				colorIdx: count => colorIdx(count),
@@ -258,14 +292,15 @@ function createView(root, dataset, isSnapshot = false) {
 					if (xs.length > 0) {
 						xRange[0] = xs[0] - xSize;
 						xRange[1] = xs.at(-1);
+						// A zero row at just one end needs room on the side without regular buckets.
+						zeroEdge = minY === zeroMin && maxY !== zeroMax ? minY : maxY === zeroMax && minY !== zeroMin ? maxY : 0;
 						if (isLog)
 							[yRange[0], yRange[1]] = uPlot.rangeLog(minY, maxY, logBase, true);
 						else if (mode == 'asinh')
 							[yRange[0], yRange[1]] = uPlot.rangeAsinh(Math.min(0, minY), Math.max(0, maxY), 2, true);
 						else {
-							// An edge zero bucket overhangs the clip; it doesn't need an extra tick.
-							yRange[0] = minY === zeroMin ? 0 : Math.min(0, minY);
-							yRange[1] = maxY === zeroMax ? 0 : Math.max(0, maxY);
+							yRange[0] = zeroEdge < 0 ? 0 : Math.min(0, minY);
+							yRange[1] = zeroEdge > 0 ? 0 : Math.max(0, maxY);
 						}
 					}
 					const intervals = xs.length == 0 ? 0 : Math.round((xRange[1] - xRange[0]) / xSize);

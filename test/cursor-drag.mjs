@@ -360,6 +360,22 @@ describe('mouse-driven drag selection', () => {
 		finally { f.destroy(); }
 	});
 
+	it('preserves near-edge mouse coordinates on hover but snaps a drag at the same position', async () => {
+		const f = await plot({ x: true, y: true });
+		try {
+			const { width, height } = f.box();
+			const left = width - 0.75, top = height - 0.75;
+			f.mouse('mousemove', left, top, f.u.over, { buttons: 0 });
+			assert.deepEqual([f.u.cursor.left, f.u.cursor.top], [left, top]);
+
+			f.mouse('mousedown', 100, 100);
+			f.mouse('mousemove', left, top);
+			assertSelection(f.u, { left: 100, top: 100, width: width - 100, height: height - 100 });
+			f.mouse('mouseup', left, top, document);
+		}
+		finally { f.destroy(); }
+	});
+
 	for (const reverse of [false, true]) {
 		it(`snaps to the ${reverse ? 'left' : 'right'} edge and completes a drag released outside the plot`, async () => {
 			const f = await plot();
