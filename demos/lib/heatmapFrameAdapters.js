@@ -1,15 +1,38 @@
 // align is the direction a cell extends from its source value in axis coordinates:
 // -1 from the upper edge, +1 from the lower edge, or 0 around the center.
 // heatmapPlugin always takes the upper X edge, regardless of the source alignment.
-function checkTimes(times, interval) {
+function timeInterval(times, configured, allowRepeats = false, trusted = false) {
+	let interval = configured;
+	if (interval === undefined) {
+		// Use an observed width. A smaller common divisor could invent a very fine grid from jitter.
+		interval = Infinity;
+		for (let i = 1; i < times.length; i++) {
+			const step = times[i] - times[i-1];
+			if (step > 0 && step < interval) interval = step;
+		}
+		if (!Number.isFinite(interval)) throw new RangeError('Cannot infer an interval without two distinct timestamps');
+	}
 	if (!Number.isFinite(interval) || interval <= 0)
 		throw new RangeError('Expected a positive finite interval in milliseconds');
+	if (trusted && configured !== undefined) return interval;
+	if (!times.length) throw new RangeError('Time range needs at least one timestamp');
 	for (let i = 0; i < times.length; i++) {
 		const t = times[i];
 		if (!Number.isFinite(t) || !Number.isSafeInteger((t - times[0]) / interval))
 			throw new RangeError('Expected finite timestamps on the interval grid');
-		if (i > 0 && t <= times[i-1])
+		if (i > 0 && (allowRepeats ? t < times[i-1] : t <= times[i-1]))
 			throw new RangeError('Expected ascending timestamps');
+	}
+	return interval;
+}
+
+// For a known geometric grid, one regular bucket suffices, even if intervening rows are missing.
+function bucketFactor(lo, hi) {
+	for (let i = 0; i < lo.length; i++) {
+		const a = lo[i], b = hi[i];
+		if (!Number.isFinite(a) || !Number.isFinite(b) || a >= b) continue;
+		const ratio = a > 0 ? b / a : b < 0 ? a / b : NaN;
+		if (Number.isFinite(ratio) && ratio > 1) return ratio;
 	}
 }
 
@@ -22,17 +45,68 @@ function populated(count) {
 	return Number.isFinite(count) && count > 0;
 }
 
-export function heatmapCells(frameOrSnapshot) {
-	let {interval, values, factor, schema} = frameOrSnapshot;
-	if (schema) {
-		const indices = ['xMax', 'yMin', 'yMax', 'count'].map(name => schema.fields.findIndex(f => f.name === name));
-		interval = schema.fields[indices[0]]?.config?.interval;
-		values = indices.map(i => frameOrSnapshot.data.values[i]);
-	}
+export function heatmapCells({schema, data}, {ordinal = false, geometric = false} = {}) {
+	const fieldIndex = name => schema.fields.findIndex(f => f.name === name);
+	const indices = ['xMax', 'yMin', 'yMax', 'count'].map(fieldIndex);
+
+	const values = indices.map(i => data.values[i]);
 	// Sparse cells already follow the plugin contract. Only X needs unit conversion.
 	const [times, lo, hi, counts] = values;
-	const result = {data: [null, [times.map(ms => ms / 1000), lo, hi, counts]], xSize: interval / 1000};
-	if (factor !== undefined) result.factor = factor;
+	const interval = timeInterval(times, schema.fields[indices[0]].config?.interval, true, !ordinal);
+	const xs = times.map(ms => ms / 1000);
+	const result = {data: [null, [xs, lo, hi, counts]], xSize: interval / 1000};
+
+	if (!ordinal) {
+		if (geometric) result.factor = bucketFactor(lo, hi);
+		return result;
+	}
+
+	const layoutIdx = fieldIndex('yLayout');
+	const layout = data.values[layoutIdx];
+	checkColumns(layoutIdx < 0 ? values : [...values, layout]);
+
+
+	// Rank the union of observed edges, not just the edges present at the first timestamp.
+	const ranks = new Map();
+	let allPositive = true;
+	for (let i = 0; i < times.length; i++) {
+		const lower = lo[i] === null ? -Infinity : lo[i];
+		const upper = hi[i] === null ? Infinity : hi[i];
+		if (typeof lower !== 'number' || typeof upper !== 'number' || !(lower < upper))
+			throw new RangeError('Expected increasing numeric Y bounds or null open ends');
+		// Hover shows (lo, hi]. Layout 3 is equivalent only for an unbounded lower edge.
+		if (layout && layout[i] !== 0 && !(layout[i] === 3 && lo[i] === null))
+			throw new RangeError('Unsupported yLayout for ordinal cells');
+		ranks.set(lower, 0);
+		ranks.set(upper, 0);
+		if (!populated(counts[i])) allPositive = false;
+	}
+	const edges = Array.from(ranks.keys()).sort((a, b) => a - b);
+	edges.forEach((edge, i) => ranks.set(edge, i));
+
+	const lows = [], highs = [];
+	const positive = allPositive ? counts : [];
+	let prevRow = -1;
+	for (let i = 0; i < times.length; i++) {
+		const row = ranks.get(lo[i] ?? -Infinity);
+		if (ranks.get(hi[i] ?? Infinity) !== row + 1)
+			throw new RangeError('Ordinal cell bounds must have adjacent ranks');
+		if (times[i] === times[i-1] && row <= prevRow)
+			throw new RangeError('Expected ascending row IDs within each timestamp');
+		prevRow = row;
+		if (!allPositive) {
+			if (!populated(counts[i])) continue;
+			xs[lows.length] = xs[i];
+			positive.push(counts[i]);
+		}
+		lows.push(row);
+		highs.push(row + 1);
+	}
+	xs.length = lows.length;
+	result.data[1] = [xs, lows, highs, positive];
+	result.grid = {y: {distr: 1}};
+	result.scales = {x: {time: true, range: [(times[0] - interval) / 1000, times.at(-1) / 1000]}, y: {range: [0, edges.length - 1], distr: 1}};
+	result.axes = [null, {splits: edges.map((_, i) => i), values: edges.map(v => v === -Infinity ? '-Inf' : v === Infinity ? '+Inf' : String(v)), align: -1}];
 	return result;
 }
 
@@ -84,9 +158,7 @@ export function heatmapRows(frame, {x = {}, y = {}} = {}) {
 	const time = xField.type === 'time';
 	let xAxis = null, xSize = 1, xRange, rightEdges;
 	if (time) {
-		const interval = xField.config?.interval;
-		checkTimes(domain, interval);
-		if (!domain.length) throw new RangeError('Time range needs at least one timestamp');
+		const interval = timeInterval(domain, xField.config?.interval);
 		xSize = interval / 1000;
 		const align = alignment(x, -1);
 		const offset = (1 + align) * interval / 2;

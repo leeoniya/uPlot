@@ -36,25 +36,27 @@ function labeledAxis(axis) {
 	};
 }
 
-export function createDemo(root, frames) {
+export function createDemo(root, frames, { otelClassic, otelNhcb } = {}) {
 	const frame = type => frames.find(f => f.schema.meta?.type == type);
-	const classic = frame('heatmap-rows');
+	const sources = { classic: frame('heatmap-rows'), otelClassic, otelNhcb };
 	const datasets = {
-		synthetic: heatmapCells(frame('heatmap-cells')),
-		snapshot1: heatmapCells(snapshot1),
-		snapshot2: heatmapCells(snapshot2),
+		synthetic: heatmapCells(frame('heatmap-cells'), { geometric: true }),
+		snapshot1: heatmapCells(snapshot1, { geometric: true }),
+		snapshot2: heatmapCells(snapshot2, { geometric: true }),
 		categorical: heatmapRows({
 			schema: { fields: [{ name: 'Method', type: 'string' }, { name: '2xx' }, { name: '4xx' }, { name: '5xx' }] },
 			data: { values: [['GET', 'POST', 'DELETE'], [25, 18, 6], [4, 3, 0], [1, 0, 2]] },
 		}),
 	};
-	root.querySelector('option[value="classic"]').disabled = !classic;
 	const select = root.querySelector('#dataset');
+	for (const [name, source] of Object.entries(sources))
+		select.querySelector(`option[value="${name}"]`).disabled = !source;
 	select.value = 'synthetic';
 	let view = createView(root, datasets.synthetic);
 	function setDataset() {
 		const name = select.value;
-		if (name === 'classic') datasets.classic ??= heatmapRows(classic);
+		const source = sources[name];
+		if (source) datasets[name] ??= source.schema.meta.type === 'heatmap-rows' ? heatmapRows(source) : heatmapCells(source, { ordinal: true });
 		view.destroy();
 		view = createView(root, datasets[name], name === 'snapshot1' || name === 'snapshot2');
 	}
@@ -162,8 +164,6 @@ function createView(root, dataset, isSnapshot = false) {
 
 	let data = sourceData;
 	let signedData;
-
-	const factor = dataset.factor ?? yMax[0] / yMin[0];
 
 
 	function mirroredData() {
@@ -309,7 +309,7 @@ function createView(root, dataset, isSnapshot = false) {
 				cellGap: () => gap,
 
 				zeroHeight,
-				grid: dataset.grid ?? (isSnapshot || signed.checked ? { y: { distr: 3, factor } } : undefined),
+				grid: dataset.grid ?? (isSnapshot || signed.checked ? { y: { distr: 3, factor: dataset.factor } } : undefined),
 				colors: palette,
 				colorIdx: count => colorIdx(count),
 				onPrepare(u, minY, maxY, threshold, zeroMin, zeroMax) {

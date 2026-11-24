@@ -110,9 +110,13 @@ describe('heatmap cells demo', () => {
 		select.dispatchEvent(new Event('change'));
 	}
 
+	function fixtureFrame(name) {
+		const [frame] = JSON.parse(readFileSync(new URL(`../../demos/data/heatmap-${name}.json`, import.meta.url), 'utf8'));
+		return frame;
+	}
+
 	function demoFrames() {
-		const [classic] = JSON.parse(readFileSync(new URL('../../demos/data/heatmap-classic.json', import.meta.url), 'utf8'));
-		return [...generateHeatmapCells({ columns: 2 }), classic];
+		return [...generateHeatmapCells({ columns: 2 }), fixtureFrame('classic')];
 	}
 
 	it('switches synchronously from synthetic to both original snapshots and back', async () => {
@@ -128,7 +132,8 @@ describe('heatmap cells demo', () => {
 			demo = createDemo(root, frames);
 			await Promise.resolve();
 			assert.ok(select, 'demo has a dataset selector');
-			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'categorical']);
+			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'otelClassic', 'otelNhcb', 'categorical']);
+			assert.deepEqual(Array.from(select.options).filter(o => o.disabled).map(o => o.value), ['otelClassic', 'otelNhcb']);
 			assert.equal(select.value, 'synthetic');
 			assert.equal(select.disabled, false);
 			const original = demo.plot.data[1];
@@ -267,6 +272,58 @@ describe('heatmap cells demo', () => {
 			assertNativeTimeLabels(demo.plot);
 			assert.equal(scale.disabled, false);
 			assert.equal(signed.disabled, false);
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('switches between sparse OTel fixtures and preserves ordinal bucket edges through zoom and reset', async () => {
+		const root = createDemoRoot();
+		const edges = ['-Inf', '1', '10', '100', '1000', '10000', '100000', '+Inf'];
+		const first = 1779282840, last = 1779283740, step = 60;
+		let demo;
+		try {
+			demo = createDemo(root, demoFrames(), {otelClassic: fixtureFrame('otel-classic'), otelNhcb: fixtureFrame('otel-nhcb')});
+			const original = demo.plot.data[1];
+			for (const [source, secondCount] of [['otelClassic', 1.728738673422335], ['otelNhcb', 1.7333622227037118]]) {
+				assert.equal(root.querySelector(`#dataset option[value="${source}"]`)?.disabled, false, `${source} is selectable`);
+				selectDataset(root, source);
+				await settleLayout();
+				const u = demo.plot;
+				const [xs, lo, hi, counts] = u.data[1];
+				assert.deepEqual([xs.length, lo.length, hi.length, counts.length], [109, 109, 109, 109]);
+				assert.ok(counts.every(v => v > 0));
+				const idx = xs.findIndex((x, i) => x === first + step && lo[i] === 0 && hi[i] === 1);
+				assert.equal(counts[idx], secondCount, source);
+
+				function checkFullAxes() {
+					assert.deepEqual([u.scales.x.min, u.scales.x.max], [first - step, last]);
+					assertNativeTimeLabels(u);
+					assert.deepEqual([u.scales.y.min, u.scales.y.max], [0, 7]);
+					assert.deepEqual(u.axes[1]._splits, [0, 1, 2, 3, 4, 5, 6, 7]);
+					assert.deepEqual(u.axes[1]._values, edges);
+				}
+				function hover(xMax, yMin) {
+					u.setCursor({ left: u.valToPos(xMax - step / 2, 'x'), top: u.valToPos(yMin + .5, 'y') });
+					return root.querySelector('#hover').textContent;
+				}
+				checkFullAxes();
+				assert.match(hover(first + step, 0), /Y: \(-Inf, 1\]/);
+				assert.match(hover(first, 6), /Y: \(100000, \+Inf\]/);
+				assert.doesNotMatch(hover(first + 7 * step, 1), /Count:/);
+
+				u.setScale('x', { min: first, max: first + 4 * step });
+				u.setScale('y', { min: 2, max: 5 });
+				await settleLayout();
+				assert.deepEqual([u.scales.x.min, u.scales.x.max], [first, first + 4 * step]);
+				assert.deepEqual(u.axes[1]._splits, [2, 3, 4, 5]);
+				assert.deepEqual(u.axes[1]._values, edges.slice(2, 6));
+				u.over.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, button: 0 }));
+				await settleLayout();
+				checkFullAxes();
+			}
+			selectDataset(root, 'synthetic');
+			await settleLayout();
+			assert.deepEqual(demo.plot.data[1], original);
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});

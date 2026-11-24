@@ -1,9 +1,22 @@
 // Heatmap cells from https://github.com/grafana/grafana/pull/127647#issuecomment-4855406920
 // Columns: xMax (Unix ms), yMin, yMax, count. Sorted by xMax, then yMin.
 
-export const snapshot1 = {
-	interval: 60000,
-	factor: 2 ** (1 / 16),
+function cellsFrame(data) {
+	return {
+		schema: {
+			meta: { type: 'heatmap-cells' },
+			fields: [
+				{ name: 'xMax', type: 'time', config: { interval: 60000 } },
+				{ name: 'yMin', type: 'number' },
+				{ name: 'yMax', type: 'number' },
+				{ name: 'count', type: 'number' },
+			],
+		},
+		data,
+	};
+}
+
+export const snapshot1 = cellsFrame({
 	values: [
 		[
 			1780392720000, 1780392720000, 1780392720000, 1780392720000, 1780392720000, 1780392720000, 1780392780000, 1780392780000,
@@ -118,11 +131,9 @@ export const snapshot1 = {
 			0.03888867284070644, 0.15555469136282574, 0.022222098766117967, 0.005555524691529492,
 		],
 	],
-};
+});
 
-export const snapshot2 = {
-	interval: 60000,
-	factor: 2 ** (1 / 16),
+export const snapshot2 = cellsFrame({
 	values: [
 		[
 			1780392720000, 1780392720000, 1780392720000, 1780392720000, 1780392720000, 1780392720000, 1780392720000, 1780392720000,
@@ -325,4 +336,4 @@ export const snapshot2 = {
 			0.005555524691529492,
 		],
 	],
-};
+});
