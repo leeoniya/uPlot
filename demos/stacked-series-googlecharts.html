@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — Google Charts</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading Google Charts…</p></main>
+		<script src="https://www.gstatic.com/charts/loader.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-googlecharts.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'googlecharts', createDemo);
+		</script>
+	</body>
+</html>

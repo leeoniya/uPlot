@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — Recharts</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+		<script type="importmap">
+			{
+				"imports": {
+					"react": "https://esm.sh/react@19.3.1?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1",
+					"react-dom": "https://esm.sh/react-dom@19.3.1?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"react-dom/client": "https://esm.sh/react-dom@19.3.1/client?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"recharts": "https://esm.sh/recharts@3.10.1?bundle&target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom"
+				}
+			}
+		</script>
+	</head>
+	<body>
+		<main id="demo"><p>Loading Recharts…</p></main>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-recharts.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'recharts', async (host, data) => {
+				// External React imports resolve through one shared, pinned import map.
+				const [React, ReactDOM, ReactDOMClient, Recharts] = await Promise.all([
+					import('react'),
+					import('react-dom'),
+					import('react-dom/client'),
+					import('recharts'),
+				]);
+				return createDemo(host, data, {React, ReactDOM, ReactDOMClient, Recharts});
+			});
+		</script>
+	</body>
+</html>

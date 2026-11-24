@@ -1,4 +1,5 @@
 import { plotStep } from './renderDemo.js';
+import { createStackedSeriesData, stackedSeries } from './lib/stackedSeriesData.js';
 
 const signedStacks = {
 	groups: [
@@ -359,6 +360,18 @@ function mixedSignBars(percent = false) {
 	}, opts), data, document.body);
 }
 
+function zeroStrokeStacking() {
+	paragraph('Native stacks with dir: 1 or -1 draw strokes in reverse group.series order within each band group. Here, strokes paint from D to A, so lower layers cover coincident strokes. Fills, points, and hooks keep their existing order.');
+	paragraph('Separate zero runs: B at x=2–4, C at x=6–8, and D at x=10–12. All three are zero at x=14–16. D also has an isolated zero at x=18.');
+
+	paragraph('<a href="stacked-series-index.html">Compare the same dataset in other chart libraries.</a>');
+
+	const data = createStackedSeriesData();
+	const series = stackedSeries.map(series => ({...series, width: 3, points: {show: false}}));
+
+	return stackedChart('Stacked zeros / reverse stroke order', [{}, ...series], data, {width: 1000, height: 440});
+}
+
 export default [{
 	steps: [
 		plotStep(stackingOrderComparison),
@@ -378,5 +391,11 @@ export default [{
 		plotStep(joinedMixedStacking),
 		plotStep(() => mixedSignBars()),
 		plotStep(() => mixedSignBars(true)),
+	],
+}, {
+	id: 'zero-strokes',
+	name: 'Reverse stroke order',
+	steps: [
+		{id: 'runs', ...plotStep(zeroStrokeStacking)},
 	],
 }];

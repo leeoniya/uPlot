@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — amCharts</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading amCharts…</p></main>
+		<script src="https://cdn.jsdelivr.net/gh/amcharts/amcharts5-dist@5.21.4/index.js"></script>
+		<script src="https://cdn.jsdelivr.net/gh/amcharts/amcharts5-dist@5.21.4/xy.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-amcharts.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'amcharts', createDemo);
+		</script>
+	</body>
+</html>

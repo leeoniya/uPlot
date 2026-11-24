@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — Vega</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading Vega…</p></main>
+		<script src="https://cdn.jsdelivr.net/npm/vega@6.4.0/build/vega.min.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-vega.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'vega', createDemo);
+		</script>
+	</body>
+</html>

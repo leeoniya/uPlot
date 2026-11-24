@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — AG Charts Community</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading AG Charts Community…</p></main>
+		<script src="https://cdn.jsdelivr.net/npm/ag-charts-community@14.2.0/dist/umd/ag-charts-community.min.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-agcharts.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'agcharts', createDemo);
+		</script>
+	</body>
+</html>

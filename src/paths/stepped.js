@@ -21,8 +21,6 @@ export function stepped(opts) {
 
 			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
-			let { left, width } = u.bbox;
-
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
 
@@ -42,7 +40,7 @@ export function stepped(opts) {
 			let firstXPosExt = firstXPos;
 
 			if (extend && align == -1) {
-				firstXPosExt = left;
+				firstXPosExt = xOff;
 				lineTo(stroke, firstXPosExt, prevYPos);
 			}
 
@@ -75,7 +73,7 @@ export function stepped(opts) {
 			let prevXPosExt = prevXPos;
 
 			if (extend && align == 1) {
-				prevXPosExt = left + width;
+				prevXPosExt = xOff + xDim;
 				lineTo(stroke, prevXPosExt, prevYPos);
 			}
 

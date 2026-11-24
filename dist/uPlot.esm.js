@@ -2653,7 +2653,6 @@ function stepped(opts) {
 			if (idx0 == -1) return null;
 			let pxRound = series.pxRound;
 			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
-			let { left, width } = u.bbox;
 			let pixelForX = (val) => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = (val) => pxRound(valToPosY(val, scaleY, yDim, yOff));
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
@@ -2673,7 +2672,7 @@ function stepped(opts) {
 			let prevXPos = firstXPos;
 			let firstXPosExt = firstXPos;
 			if (extend && align == -1) {
-				firstXPosExt = left;
+				firstXPosExt = xOff;
 				lineTo(stroke, firstXPosExt, prevYPos);
 			}
 			lineTo(stroke, firstXPos, prevYPos);
@@ -2693,7 +2692,7 @@ function stepped(opts) {
 			}
 			let prevXPosExt = prevXPos;
 			if (extend && align == 1) {
-				prevXPosExt = left + width;
+				prevXPosExt = xOff + xDim;
 				lineTo(stroke, prevXPosExt, prevYPos);
 			}
 			let [bandFillDir, bandClipDir] = bandFillClipDirs(u, seriesIdx);
@@ -3181,7 +3180,7 @@ function uPlot(opts, data, then) {
 	const stackedSeries = [];
 	stackGroups.forEach((group) => {
 		group.series.forEach((si) => {
-			stackedSeries[si] = true;
+			stackedSeries[si] = group;
 		});
 	});
 	const xScaleKey = mode == 2 ? series[1].facets[0].scale : series[0].scale;
@@ -4238,6 +4237,7 @@ function uPlot(opts, data, then) {
 	const nextBand = [];
 	const bandHasData = [];
 	let bandGroupsDirty = true;
+	let stackOrder = EMPTY_ARR;
 	function invalidateBandGroups() {
 		bandGroupsDirty = true;
 		bandEnds.length = firstBand.length = nextBand.length = bandHasData.length = 0;
@@ -4265,6 +4265,7 @@ function uPlot(opts, data, then) {
 				firstBand.fill(-1);
 				nextBand.length = bandHasData.length = bands.length;
 				bandHasData.fill(false);
+				let stackSlots = stackGroups.length > 0 && bands.length > 0 ? [] : null;
 				for (let bi = bands.length - 1; bi >= 0; bi--) {
 					let b = bands[bi];
 					let si = b.series[0];
@@ -4280,7 +4281,27 @@ function uPlot(opts, data, then) {
 					if (end > 0) {
 						for (let j = i + 1; j <= end; j++) end = max(end, bandEnds[j]);
 						bandEnds[i] = end;
+						if (stackSlots != null) {
+							let byGroup = /* @__PURE__ */ new Map();
+							for (let j = i; j <= end; j++) {
+								let group = stackedSeries[j];
+								if (group != null && group.dir != 0) {
+									let slots = byGroup.get(group);
+									if (slots == null) byGroup.set(group, slots = []);
+									slots.push(j);
+									stackSlots[j] = slots;
+								}
+							}
+						}
 						i = end;
+					}
+				}
+				stackOrder = EMPTY_ARR;
+				if (stackSlots?.length) {
+					stackOrder = [];
+					for (let group of stackGroups) if (group.dir != 0) for (let si of group.series) {
+						let slots = stackSlots[si];
+						if (slots != null) stackOrder[slots.pop()] = si;
 					}
 				}
 				bandGroupsDirty = false;
@@ -4292,7 +4313,7 @@ function uPlot(opts, data, then) {
 				if (focused == (pass == 1)) {
 					if (bandEnds[i] > 0) {
 						for (let j = i; j <= end; j++) drawSeriesPart(j, 1, false);
-						for (let j = i; j <= end; j++) drawSeriesPart(j, 2, false);
+						for (let j = i; j <= end; j++) drawSeriesPart(stackOrder[j] ?? j, 2, false);
 						for (let j = i; j <= end; j++) drawSeriesPart(j, 0, true);
 					} else drawSeriesPart(i, CLIP_FILL_STROKE, true);
 				}
@@ -4404,11 +4425,11 @@ function uPlot(opts, data, then) {
 				ctx.clip(bandClip);
 				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				canStroke && doStroke(strokeStyle, strokePath);
 			} else if (flags & 2) {
 				doFill(fillStyle, fillPath);
 				ctx.clip(bandClip);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				canStroke && doStroke(strokeStyle, strokePath);
 			} else if (flags & 1) {
 				canStroke && ctx.save();
 				ctx.clip(bandClip);
@@ -4418,12 +4439,12 @@ function uPlot(opts, data, then) {
 					ctx.restore();
 					ctxFill = _ctxFill;
 					ctxStroke = _ctxStroke;
-					doStroke(strokeStyle, strokePath, lineWidth);
+					doStroke(strokeStyle, strokePath);
 				}
 			}
 		} else {
 			doFill(fillStyle, fillPath);
-			doStroke(strokeStyle, strokePath, lineWidth);
+			canStroke && doStroke(strokeStyle, strokePath);
 		}
 		if (boundsClip || gapsClip || bandClip) {
 			ctx.restore();
@@ -4431,15 +4452,13 @@ function uPlot(opts, data, then) {
 			ctxStroke = _ctxStroke;
 		}
 	}
-	function doStroke(strokeStyle, strokePath, lineWidth) {
-		if (lineWidth > 0) {
-			if (strokePath instanceof Map) strokePath.forEach((strokePath, strokeStyle) => {
-				ctx.strokeStyle = ctxStroke = strokeStyle;
-				if (isArr(strokePath)) strokePath.forEach((path) => ctx.stroke(path));
-				else ctx.stroke(strokePath);
-			});
-			else strokePath != null && strokeStyle != null && ctx.stroke(strokePath);
-		}
+	function doStroke(strokeStyle, strokePath) {
+		if (strokePath instanceof Map) strokePath.forEach((strokePath, strokeStyle) => {
+			ctx.strokeStyle = ctxStroke = strokeStyle;
+			if (isArr(strokePath)) strokePath.forEach((path) => ctx.stroke(path));
+			else ctx.stroke(strokePath);
+		});
+		else ctx.stroke(strokePath);
 	}
 	function doFill(fillStyle, fillPath) {
 		if (fillPath instanceof Map) fillPath.forEach((fillPath, fillStyle) => {

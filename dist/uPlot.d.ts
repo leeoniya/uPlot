@@ -442,7 +442,12 @@ declare namespace uPlot {
 			/** series indices ordered from zero outward */
 			series: number[];
 
-			/** 0 for bars (split by sign); 1/-1 for lines and areas (away from zero) */
+			/**
+			 * 0 for bars (split by sign). 1/-1 for lines and areas (away from zero).
+			 * Native 1/-1 stacks draw strokes in reverse group.series order within each band group.
+			 * Fills, points, and hooks keep their existing order.
+			 * Unstacked series, explicit bands, and dir: 0 bars keep their stroke order.
+			 */
 			dir: 1 | -1 | 0;
 		}
 	}

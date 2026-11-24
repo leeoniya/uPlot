@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — Nivo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+		<script type="importmap">
+			{
+				"imports": {
+					"react": "https://esm.sh/react@19.3.1?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1",
+					"react/jsx-runtime": "https://esm.sh/react@19.3.1/jsx-runtime?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"react-dom": "https://esm.sh/react-dom@19.3.1?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"react-dom/client": "https://esm.sh/react-dom@19.3.1/client?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"@nivo/line": "https://esm.sh/@nivo/line@0.99.0?bundle&target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1,d3-time@3.1.1&external=react,react-dom"
+				}
+			}
+		</script>
+	</head>
+	<body>
+		<main id="demo"><p>Loading Nivo…</p></main>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-nivo.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'nivo', async (host, data) => {
+				// Nivo imports the JSX runtime. Both runtime modules share the pinned React instance.
+				// The d3-time pin fixes esm.sh's timeTickInterval dependency resolution.
+				const [React, ReactDOM, ReactDOMClient, Nivo] = await Promise.all([
+					import('react'),
+					import('react-dom'),
+					import('react-dom/client'),
+					import('@nivo/line'),
+				]);
+				return createDemo(host, data, {React, ReactDOM, ReactDOMClient, Nivo});
+			});
+		</script>
+	</body>
+</html>

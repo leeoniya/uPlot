@@ -25,7 +25,7 @@ const demos = [
 	['soft-minmax', softMinmax, 8],
 	['nearest-non-null', nearestNonNull, 5],
 	['log-scales2', logScales, 12],
-	['stacked-series', stackedSeries, 16],
+	['stacked-series', stackedSeries, 17],
 ];
 
 describe('demo migrations', () => {

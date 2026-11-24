@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — CanvasJS</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading CanvasJS…</p></main>
+		<p class="license">CanvasJS requires a commercial license for commercial use beyond its 30-day evaluation period.
+			Its <a href="https://cdn.jsdelivr.net/npm/@canvasjs/charts@3.17.8/LICENSE">package license</a> permits free non-commercial use under CC BY-NC 3.0.
+			The vendor credit link remains enabled.</p>
+		<script src="https://cdn.jsdelivr.net/npm/@canvasjs/charts@3.17.8/canvasjs.min.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-canvasjs.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'canvasjs', createDemo);
+		</script>
+	</body>
+</html>

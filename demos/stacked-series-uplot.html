@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — uPlot</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading uPlot…</p></main>
+		<script type="module">
+			import uPlot from '../dist/uPlot.esm.js';
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-uplot.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'uplot', (host, data) => createDemo(host, data, uPlot));
+		</script>
+	</body>
+</html>

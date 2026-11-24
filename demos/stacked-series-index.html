@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Series — Library Comparisons</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main>
+			<nav><a href="index.html">All demos</a> · <a href="stacked-series.html">Full uPlot stacking demo</a></nav>
+			<h1>Stacked zeros · library comparisons</h1>
+			<p>Each demo uses the same <a href="lib/stackedSeriesData.js">raw dataset and colors</a> as the zero-run example in the uPlot stacking demo.</p>
+		<p>Each demo shows the raw series and their negatives. On each side of zero, A is the base and D is the outer layer.</p>
+		<p>Most pages show both stacks on one Y axis from −16 to 16. Pages marked “two panels” show one stack per chart, with Y ranges of 0 to 16 and −16 to 0.</p>
+		<p>All plots start at X = 0–20 and use linear paths, 3px strokes, and 18% fill opacity. Each library supplies its own legend, except D3, which has none. uPlot keeps its native cursor and drag zoom.</p>
+			<ol>
+				<li><a href="stacked-series-uplot.html">uPlot — local build</a></li>
+				<li><a href="stacked-series-chartjs.html">Chart.js 4.6.1</a></li>
+				<li><a href="stacked-series-echarts.html">ECharts 6.1.0</a></li>
+				<li><a href="stacked-series-d3.html">D3 7.9.0</a></li>
+				<li><a href="stacked-series-apexcharts.html">ApexCharts 8.4.1</a> · two panels</li>
+				<li><a href="stacked-series-highcharts.html">Highcharts 13.1.1</a></li>
+				<li><a href="stacked-series-plotly.html">Plotly.js 4.1.2</a></li>
+				<li><a href="stacked-series-recharts.html">Recharts 3.10.1 (React 19.3.1)</a></li>
+				<li><a href="stacked-series-agcharts.html">AG Charts Community 14.2.0</a></li>
+				<li><a href="stacked-series-amcharts.html">amCharts 5.21.4</a></li>
+				<li><a href="stacked-series-googlecharts.html">Google Charts — frozen release 52</a> · two panels</li>
+				<li><a href="stacked-series-vega.html">Vega 6.4.0</a></li>
+				<li><a href="stacked-series-g2.html">AntV G2 5.4.8</a></li>
+				<li><a href="stacked-series-billboard.html">billboard.js 4.1.3</a> · two panels</li>
+				<li><a href="stacked-series-dygraphs.html">dygraphs 2.2.2</a> · two panels</li>
+				<li><a href="stacked-series-muicharts.html">MUI X Charts 9.16.0</a></li>
+				<li><a href="stacked-series-nivo.html">Nivo 0.99.0</a> · two panels</li>
+				<li><a href="stacked-series-victory.html">Victory 38.1.1</a></li>
+				<li><a href="stacked-series-canvasjs.html">CanvasJS 3.17.8</a> · two panels</li>
+				<li><a href="stacked-series-bokeh.html">Bokeh 3.10.1</a></li>
+			</ol>
+			<h2>What to compare</h2>
+			<ul>
+				<li><strong>x=2–4:</strong> B is zero. Its upper edge meets the blue A boundary.</li>
+				<li><strong>x=6–8:</strong> C is zero. Its upper edge meets the green B boundary.</li>
+				<li><strong>x=10–12:</strong> D is zero. Its upper edge meets the orange C boundary.</li>
+				<li><strong>x=14–16:</strong> B, C, and D are zero. All upper edges meet the blue A boundary.</li>
+				<li><strong>x=18:</strong> D has an isolated zero. Its incoming and outgoing strokes meet the orange C boundary.</li>
+			</ul>
+			<p class="note">uPlot draws strokes in reverse group.series order within each native band group with dir: 1 or -1.
+			Here, strokes paint from D to A. Fills, points, and hooks keep their existing order.
+			Unstacked series, explicit bands, and dir: 0 bars keep their stroke order.</p>
+			<p class="note">The examples keep native paint order and stroke behavior. Stack order does not imply paint order.
+			No comparison adds custom zero clipping. D3, Vega, and Bokeh use separate area and upper-edge line primitives, with paint order stated on their pages.
+			AntV G2 strokes complete area outlines, including lower edges and end caps.
+			ApexCharts and Nivo fill cumulative areas down to zero, so their translucent fills overlap and blend.</p>
+			<h2>Dependencies</h2>
+			<p>Serve the repository root over HTTP. The uPlot page uses the local <code>dist/</code> build.</p>
+			<p>Most external pages download pinned library scripts from jsDelivr. billboard.js and dygraphs also load pinned stylesheets from jsDelivr.
+			Recharts, MUI X Charts, Nivo, Victory, and React use pinned modules from esm.sh.
+			Google Charts uses www.gstatic.com and requests frozen release 52 through its mutable loader.</p>
+			<p>Versions match the repository's benchmark pins where available. Nivo and Victory use separate exact release pins.
+			The dataset stays local and requires no external data service.</p>
+			<p class="license">External libraries retain their own licenses.
+			<a href="https://cdn.jsdelivr.net/npm/apexcharts@8.4.1/LICENSE.md">ApexCharts terms</a> restrict use in competing charting products.
+			Highcharts requires an applicable <a href="https://www.highcharts.com/license">license</a>.
+			amCharts retains its logo under its <a href="https://www.amcharts.com/online-store/licenses-explained/">license terms</a>.
+			CanvasJS retains its credit link and has <a href="https://cdn.jsdelivr.net/npm/@canvasjs/charts@3.17.8/LICENSE">commercial and non-commercial license terms</a>.
+			Review these terms before publication or reuse.</p>
+		</main>
+	</body>
+</html>

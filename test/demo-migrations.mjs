@@ -14,6 +14,39 @@ function click(label) {
 	label.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
 }
 
+async function assertStackStrokeOrder(plot, action = () => plot.redraw(false)) {
+	// The mock can append a repeated operation to the last entry of an earlier draw.
+	const lengths = plot.ctx.log.map(entry => entry.length);
+	const hooks = [];
+	const onSeries = (u, si) => hooks.push(si);
+	const originalHooks = plot.hooks.drawSeries;
+	plot.hooks.drawSeries = [...(originalHooks ?? []), onSeries];
+	try {
+		action();
+		await new Promise(requestAnimationFrame);
+		const visible = [1, 2, 3, 4].filter(si => plot.series[si].show);
+		const paints = plot.ctx.log.flatMap(([op, ...args], i) => {
+			if (op !== 'fill' && op !== 'stroke')
+				return [];
+			return args.slice((lengths[i] ?? 1) - 1).flatMap(([path]) => {
+				const si = visible.find(si => plot.series[si]._paths?.[op] === path);
+				return si == null ? [] : [[op, si]];
+			});
+		});
+		assert.deepStrictEqual(paints, [
+			...visible.map(si => ['fill', si]),
+			...visible.slice().reverse().map(si => ['stroke', si]),
+		], 'fills keep their order and strokes reverse the visible group declaration order');
+		assert.deepStrictEqual(hooks, visible, 'drawSeries hooks keep their order and run once per visible series');
+	}
+	finally {
+		if (originalHooks == null)
+			delete plot.hooks.drawSeries;
+		else
+			plot.hooks.drawSeries = originalHooks;
+	}
+}
+
 describe('demo migrations', () => {
 	let previousUPlot;
 	let bodyChildren;
@@ -226,6 +259,51 @@ describe('demo migrations', () => {
 			assert.deepStrictEqual(plot._base, baselines);
 		});
 	}
+
+	it('appends the zero-stroke demo with raw zero runs and reverse stroke order', async () => {
+		assert.deepStrictEqual(getDemoSteps(stackedSeries).map(({ id }) => id), [
+			'0-0', '0-1', '0-2',
+			'1-0', '1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '1-9', '1-10',
+			'zero-strokes-runs',
+		]);
+		assert.equal(stackedSeries.at(-1).name, 'Reverse stroke order');
+		const plots = await render(stackedSeries, 14);
+		assert.equal(plots.length, 1);
+		const [plot] = plots;
+		assert.equal(plot.data.length, 5);
+		assert.deepStrictEqual(plot.data[0], Array.from({ length: 21 }, (_, i) => i));
+		assert.equal(plot.data[1].length, 21);
+		assert.ok(plot.data[1].every(value => value > 0));
+		for (const [si, zeros] of [
+			[2, [2, 3, 4, 14, 15, 16]],
+			[3, [6, 7, 8, 14, 15, 16]],
+			[4, [10, 11, 12, 14, 15, 16, 18]],
+		])
+			assert.deepStrictEqual(plot.data[si], plot.data[0].map(x => zeros.includes(x) ? 0 : 3));
+		await assertStackStrokeOrder(plot);
+	});
+
+	it('restacks and restores the zero-stroke demo with reverse stroke order and unchanged source data', async () => {
+		const [plot] = await render(stackedSeries, 14);
+		const raw = structuredClone(plot.data);
+		const stacked = structuredClone(plot._data);
+		const bands = plot.bands.map(band => band.series.slice());
+		await assertStackStrokeOrder(plot);
+		const label = plot.root.querySelectorAll('.u-label')[2];
+		await assertStackStrokeOrder(plot, () => click(label));
+		assert.equal(plot.series[2].show, false);
+		assert.deepStrictEqual(plot.data, raw);
+		const accum = Array(raw[0].length).fill(0);
+		for (const si of [1, 3, 4])
+			assert.deepStrictEqual(plot._data[si], raw[si].map((value, i) => (accum[i] += value)));
+		assert.ok(plot.bands.every(band => !band.series.includes(2)));
+		await assertStackStrokeOrder(plot, () => click(label));
+		assert.equal(plot.series[2].show, true);
+		assert.deepStrictEqual(plot.data, raw);
+		assert.deepStrictEqual(plot._data, stacked);
+		assert.deepStrictEqual(plot.bands.map(band => band.series), bands);
+		await assertStackStrokeOrder(plot);
+	});
 
 	it('keeps the inverted log pair linked with independent legends in one shared host', async () => {
 		const now = 1700000000;

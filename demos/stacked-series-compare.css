@@ -1,0 +1,27 @@
+body {
+	margin: 24px;
+	color: #172b46;
+	background: #fff;
+	font: 15px/1.5 system-ui, sans-serif;
+}
+
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 24px; }
+a { color: #245da8; }
+p { margin: 12px 0; }
+li { margin: 8px 0; }
+.note, .license { padding: 10px 14px; background: #f0f4f8; border-radius: 4px; }
+#status { min-height: 1.5em; }
+[data-state="error"] #status { color: #a32020; }
+.plot-scroll, .data-scroll { overflow-x: auto; }
+.stack-panel { width: 1000px; height: 440px; }
+/* These libraries put the native legend outside the fixed-height plot. */
+[data-library="uplot"] #plot, [data-library="muicharts"] #plot { height: auto; }
+.stack-pair h2 { font-size: 18px; }
+.data-scroll table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.data-scroll caption { text-align: left; margin: 8px 0; }
+.data-scroll th, .data-scroll td { padding: 5px 9px; border: 1px solid #d8dee8; text-align: right; white-space: nowrap; }
+.data-scroll th { text-align: left; }
+.zero { background: #fff1cc; font-weight: bold; }
+.libraries { margin-top: 24px; }
+[aria-current="page"] { font-weight: bold; }

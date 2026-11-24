@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — MUI X Charts</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+		<script type="importmap">
+			{
+				"imports": {
+					"react": "https://esm.sh/react@19.3.1?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1",
+					"react/jsx-runtime": "https://esm.sh/react@19.3.1/jsx-runtime?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"react-dom": "https://esm.sh/react-dom@19.3.1?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"react-dom/client": "https://esm.sh/react-dom@19.3.1/client?target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1&external=react,react-dom",
+					"@mui/x-charts/LineChart": "https://esm.sh/@mui/x-charts@9.16.0/LineChart?bundle&target=es2022&deps=react@19.3.1,react-dom@19.3.1,react-is@19.3.1,@mui/material@9.5.0,@mui/system@9.5.0,@emotion/react@11.14.0,@emotion/styled@11.14.1&external=react,react-dom"
+				}
+			}
+		</script>
+	</head>
+	<body>
+		<main id="demo"><p>Loading MUI X Charts…</p></main>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-muicharts.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'muicharts', async (host, data) => {
+				// External React imports resolve through one shared, pinned import map.
+				const [React, ReactDOM, ReactDOMClient, MuiCharts] = await Promise.all([
+					import('react'),
+					import('react-dom'),
+					import('react-dom/client'),
+					import('@mui/x-charts/LineChart'),
+				]);
+				return createDemo(host, data, {React, ReactDOM, ReactDOMClient, MuiCharts});
+			});
+		</script>
+	</body>
+</html>

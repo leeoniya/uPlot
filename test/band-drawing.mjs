@@ -10,7 +10,7 @@ async function probeBandCaches() {
 	const url = new URL('../src/uPlot.js', import.meta.url);
 	let source = readFileSync(url, 'utf8');
 	for (const [anchor, addition] of [
-		['let bandGroupsDirty = true;', '\n caches.set(self, { bandEnds, firstBand, nextBand, bandHasData, groupBuilds: 0, drawPath, strokeFill, drawOrthoLines });'],
+		['let bandGroupsDirty = true;', '\n caches.set(self, { bandEnds, firstBand, nextBand, bandHasData, stackGroups, groupBuilds: 0, drawPath, strokeFill, drawOrthoLines });'],
 		['if (bandGroupsDirty) {', '\n caches.get(self).groupBuilds++;'],
 	]) {
 		assert.equal(source.split(anchor).length, 2, 'private cache probe has one insertion point: ' + anchor);
@@ -148,11 +148,12 @@ function makePlot({ count = 5, bands = [], hidden = [], stack, focus = {}, serie
 
 const pointsAndHook = si => [`fillP${si}`, `strokeP${si}`, `hook${si}`];
 const ordinary = si => [`fill${si}`, `stroke${si}`, ...pointsAndHook(si)];
-function group(indices, fills = indices, segments = 1) {
-	const paint = kind => (kind == 'fill' ? fills : indices).flatMap(si =>
+function group(indices, fills = indices, segments = 1, strokes = indices) {
+	const paint = kind => (kind == 'fill' ? fills : strokes).flatMap(si =>
 		segments == 1 ? [`${kind}${si}`] : Array.from({ length: segments }, (_, j) => `${kind}${si}:${j}`));
 	return [...paint('fill'), ...paint('stroke'), ...indices.flatMap(pointsAndHook)];
 }
+const stackGroup = (indices, strokes = indices.slice().reverse()) => group(indices, indices, 1, strokes);
 function assertOrder(f, expected, offset = e => e.points ? 0.5 : 0) {
 	assert.deepEqual(f.events.map(e => `${e.kind}${e.points ? 'P' : ''}${e.si}${e.segment == null ? '' : ':' + e.segment}`), expected);
 	for (const e of f.events.filter(e => e.kind != 'hook'))
@@ -725,7 +726,7 @@ describe('band-local drawing', () => {
 		['overlapping intervals', { bands: [band(1, 4), band(3, 5)] }, [1, 4], [...ordinary(6), ...ordinary(7), ...group([1, 2, 3, 4, 5])]],
 		['a hidden member only', { bands: [band(1, 3)], hidden: [2] }, [2], [...group([1, 3]), ...[4, 5, 6, 7].flatMap(ordinary)]],
 		['a hidden endpoint with a visible focused endpoint', { bands: [band(1, 3)], hidden: [1] }, [1, 3], [...[4, 5, 6, 7].flatMap(ordinary), ...group([2, 3])]],
-		['a stack member', { stack: { groups: [{ series: [1, 2, 3], dir: 1 }, { series: [4, 5], dir: 1 }] } }, [2], [...group([4, 5]), ...ordinary(6), ...ordinary(7), ...group([1, 2, 3])]],
+		['a stack member', { stack: { groups: [{ series: [1, 2, 3], dir: 1 }, { series: [4, 5], dir: 1 }] } }, [2], [...stackGroup([4, 5]), ...ordinary(6), ...ordinary(7), ...stackGroup([1, 2, 3])]],
 	]) {
 		it(`promotes whole groups for ${name} without rebuilding caches`, async () => {
 			const f = makeProbedPlot({ count: 7, focus: { alpha: 1 }, ...options });
@@ -780,7 +781,7 @@ describe('band-local drawing', () => {
 
 	it('reuses stacked topology across new data and rebuilds when previous ordered edges or count differ', async () => {
 		const f = makeProbedPlot({ stack: { groups: [{ series: [1, 2, 3], dir: 1 }, { series: [4, 5], dir: 1 }] } });
-		const expected = [...group([1, 2, 3]), ...group([4, 5])];
+		const expected = [...stackGroup([1, 2, 3]), ...stackGroup([4, 5])];
 		const edges = [[2, 1], [3, 2], [5, 4]];
 		try {
 			await Promise.resolve();
@@ -800,9 +801,9 @@ describe('band-local drawing', () => {
 			// difference itself, not inherit dirty state from a band/visibility API.
 			for (const [change, editedOrder] of [
 				[() => { f.u.setBand(0, { series: [5, 4] }); f.u.setBand(2, { series: [2, 1] }); }, expected],
-				[() => f.u.setBand(0, { series: [2, 4] }), [...ordinary(1), ...group([2, 3, 4, 5])]],
-				[() => f.u.addBand(band(4, 3)), group([1, 2, 3, 4, 5])],
-				[() => f.u.delBand(2), [...group([1, 2, 3]), ...ordinary(4), ...ordinary(5)]],
+				[() => f.u.setBand(0, { series: [2, 4] }), [...ordinary(1), ...stackGroup([2, 3, 4, 5], [3, 2, 5, 4])]],
+				[() => f.u.addBand(band(4, 3)), stackGroup([1, 2, 3, 4, 5], [3, 2, 1, 5, 4])],
+				[() => f.u.delBand(2), [...stackGroup([1, 2, 3]), ...ordinary(4), ...ordinary(5)]],
 			]) {
 				const before = f.groupBuilds;
 				f.events.length = 0;
@@ -824,7 +825,7 @@ describe('band-local drawing', () => {
 				assertOrder(f, expected);
 			}
 			for (const [show, topology, order] of [
-				[false, [[3, 1], [5, 4]], [...group([1, 3]), ...group([4, 5])]],
+				[false, [[3, 1], [5, 4]], [...stackGroup([1, 3]), ...stackGroup([4, 5])]],
 				[true, edges, expected],
 			]) {
 				const before = f.groupBuilds;
@@ -1159,5 +1160,396 @@ describe('band-local drawing', () => {
 				finally { f.u.destroy(); }
 			});
 		}
+	}
+});
+
+function assertNoZeroClips(f) {
+	for (const s of f.u.series.slice(1)) {
+		for (const target of [s, s._paths, s.points._paths]) {
+			if (target != null)
+				for (const key of ['_hasZero', 'clipStroke', '_zero', '_zeroWidth'])
+					assert.equal(key in target, false, `${key} is not retained as zero-clipping metadata`);
+		}
+	}
+	for (const e of f.events.filter(e => !e.points && e.kind == 'stroke')) {
+		const clip = f.u.series[e.si]._paths.clip;
+		assert.equal(e.clips.length, 1 + Number(clip != null), 'native strokes use only bounds and ordinary gap clips');
+		if (clip != null)
+			assert.ok(e.clips.includes(clip));
+	}
+	f.checkState();
+}
+
+describe('native stack stroke order', () => {
+	for (const [name, paths, dir, percent, ori, xDir, yDir, ordinal] of [
+		['positive linear', uPlot.paths.linear(), 1, false, 0, 1, 1, false],
+		['negative rotated spline', uPlot.paths.spline(), -1, false, 1, 1, -1, false],
+		['percent reversed axes', uPlot.paths.linear(), 1, true, 0, -1, -1, false],
+		['negative percent rotated spline', uPlot.paths.spline(), -1, true, 1, -1, 1, false],
+		['rotated step-before', uPlot.paths.stepped({ align: -1 }), 1, false, 1, 1, 1, false],
+		['negative rotated step-after', uPlot.paths.stepped({ align: 1 }), -1, false, 1, -1, -1, false],
+		['ordinal reversed X', uPlot.paths.linear(), 1, false, 0, -1, 1, true],
+		['positive bars', uPlot.paths.bars({ size: [0.6, 100] }), 1, false, 0, 1, 1, false],
+		['negative bars', uPlot.paths.bars({ size: [0.6, 100] }), -1, false, 0, 1, 1, false],
+	]) {
+		it(`reverses declared [3,1,2], not numeric indices: ${name}`, async () => {
+			const xs = ordinal ? [10, 20, 90, 1000] : [0, 1, 2, 3];
+			const data = [xs, ...[[5, 0, -0, 5], [2, 3, 4, 2], [3, 4, 7, 5]].map(row => row.map(v => dir * v))];
+			const original = structuredClone(data);
+			const totals = [10, 7, 11, 12];
+			const cumulative = [xs, ...[[8, 4, 7, 10], totals, [3, 4, 7, 5]].map(row => row.map((v, i) => dir * v / (percent ? totals[i] : 1)))];
+			const max = percent ? 1 : 15;
+			const options = {
+				count: 3, paths, xRange: [0, 3],
+				series: si => ({ stroke: ['red', 'green', 'blue'][si - 1], alpha: si / 3 }),
+				scales: { x: { ori, dir: xDir, distr: ordinal ? 2 : 1 }, y: { ori: 1 - ori, dir: yDir, range: dir == 1 ? [0, max] : [-max, 0] } },
+			};
+			const f = makePlot({ ...options, stack: { groups: [{ series: [3, 1, 2], dir }], percent }, data });
+			const reference = makePlot({ ...options, bands: [{ series: [1, 3], dir: -dir }, { series: [2, 1], dir: -dir }], data: cumulative });
+			try {
+				await Promise.resolve();
+				assertOrder(f, stackGroup([1, 2, 3], [2, 1, 3]));
+				assertOrder(reference, group([1, 2, 3]));
+				assert.equal(f.u.data, data);
+				assert.deepEqual(data, original, 'raw zeros, including signed zero, remain unchanged');
+				assert.deepEqual(f.u._data, [[0, 1, 2, 3], ...cumulative.slice(1)]);
+				assert.notEqual(f.u._data[1][1], f.u._data[1][2], 'zero thickness follows a sloping base');
+				for (const si of [1, 2, 3]) {
+					const built = f.u.series[si]._paths;
+					assert.deepEqual(geometryLogs(built), geometryLogs(reference.u.series[si]._paths), 'reordering does not change cumulative path geometry');
+					assert.deepEqual(geometryLogs(built), f.geometry[si], 'drawing does not mutate paths');
+					assert.deepEqual(built.gaps, reference.u.series[si]._paths.gaps);
+				}
+				const points = plot => plot.events.filter(e => e.points).map(e => [e.si, e.kind, e.path.log]);
+				assert.deepEqual(points(f), points(reference), 'points retain numeric order and zero-height samples');
+				for (const e of f.events.filter(e => e.kind != 'hook')) {
+					assert.equal(e.alpha, e.si / 3, 'each reordered paint uses its own alpha');
+					if (!e.points && e.kind == 'stroke')
+						assert.equal(e.style, ['red', 'green', 'blue'][e.si - 1]);
+				}
+				assertNoZeroClips(f);
+				assertNoZeroClips(reference);
+			}
+			finally { f.u.destroy(); reference.u.destroy(); }
+		});
+	}
+
+	it('keeps independent interleaved/noncontiguous groups in their numeric slots, including unrelated series', async () => {
+		const groups = [{ series: [5, 1, 3], dir: 1 }, { series: [2, 6], dir: -1 }, { series: [8, 9], dir: 1 }];
+		const expected = [...stackGroup([1, 2, 3, 4, 5, 6], [3, 6, 1, 4, 5, 2]), ...ordinary(7), ...stackGroup([8, 9])];
+		for (const declared of [groups, groups.slice().reverse()]) {
+			const f = makeProbedPlot({
+				count: 9, stack: { groups: declared },
+				data: [[0, 1, 2], ...Array.from({ length: 9 }, (_, i) => (i == 1 || i == 5) ? [-2, 0, -3] : [2, 0, 3])],
+				scales: { y: { range: [-10, 10] } },
+			});
+			try {
+				await Promise.resolve();
+				assertOrder(f, expected);
+				for (const change of [() => f.u.redraw(false), () => f.u.setData(f.u.data), () => f.u.setSize({ width: 420, height: 260 })]) {
+					f.events.length = 0;
+					change();
+					await Promise.resolve();
+					assert.equal(f.groupBuilds, 1, 'unchanged topology reuses the mapping');
+					assertOrder(f, expected);
+					assertNoZeroClips(f);
+				}
+			}
+			finally { f.u.destroy(); }
+		}
+	});
+
+	it('preserves visible stroke order when the declared first, middle, or last member is hidden, down to a singleton', async () => {
+		const f = makeProbedPlot({ count: 3, stack: { groups: [{ series: [3, 1, 2], dir: 1 }] } });
+		try {
+			await Promise.resolve();
+			assertOrder(f, stackGroup([1, 2, 3], [2, 1, 3]));
+			for (const hidden of [[3], [], [1], [], [2], [1, 2], [1, 3], [2, 3], [1, 2, 3], []]) {
+				const before = f.groupBuilds;
+				const topology = f.u.bands.map(b => b.series);
+				f.events.length = 0;
+				for (const si of [1, 2, 3])
+					if (f.u.series[si].show == hidden.includes(si))
+						f.u.setSeries(si, { show: !hidden.includes(si) });
+				await Promise.resolve();
+				const visible = [1, 2, 3].filter(si => !hidden.includes(si));
+				const strokes = [2, 1, 3].filter(si => !hidden.includes(si));
+				assertOrder(f, stackGroup(visible, strokes));
+				assert.equal(f.groupBuilds, before + Number(JSON.stringify(topology) != JSON.stringify(f.u.bands.map(b => b.series))), 'visibility rebuilds the mapping with changed band topology');
+				const paths = f.u.series.map(s => s._paths);
+				const builds = f.groupBuilds;
+				f.events.length = 0;
+				f.u.redraw(false);
+				await Promise.resolve();
+				assertOrder(f, stackGroup(visible, strokes));
+				assert.equal(f.groupBuilds, builds);
+				f.u.series.forEach((s, si) => assert.equal(s._paths, paths[si]));
+				assertNoZeroClips(f);
+			}
+		}
+		finally { f.u.destroy(); }
+	});
+
+	it('keeps cached stroke order when showing a member leaves manually edited band topology unchanged', async () => {
+		const f = makeProbedPlot({ count: 3, hidden: [2], stack: { groups: [{ series: [3, 1, 2], dir: 1 }] } });
+		try {
+			await Promise.resolve();
+			assertOrder(f, stackGroup([1, 3], [1, 3]));
+			assert.deepEqual(f.u.bands.map(b => b.series), [[1, 3]]);
+			const before = f.groupBuilds;
+			f.events.length = 0;
+			// Prebuild the topology that stacking will generate when series 2 is shown.
+			f.u.addBand(band(2, 1));
+			f.u.redraw();
+			await Promise.resolve();
+			assert.equal(f.groupBuilds, before + 1);
+			assertOrder(f, stackGroup([1, 3], [1, 3]));
+			const topology = f.u.bands.map(b => b.series);
+			assert.deepEqual(topology, [[1, 3], [2, 1]]);
+			f.events.length = 0;
+			f.u.setSeries(2, { show: true });
+			await Promise.resolve();
+			assert.deepEqual(f.u.bands.map(b => b.series), topology);
+			assert.equal(f.groupBuilds, before + 1, 'unchanged edges reuse the visibility-independent mapping');
+			assertOrder(f, stackGroup([1, 2, 3], [2, 1, 3]));
+			assertNoZeroClips(f);
+			f.events.length = 0;
+			f.u.redraw(false);
+			await Promise.resolve();
+			assert.equal(f.groupBuilds, before + 1);
+			assertOrder(f, stackGroup([1, 2, 3], [2, 1, 3]));
+		}
+		finally { f.u.destroy(); }
+	});
+
+	it('traverses each of 100 disjoint stack declarations once per topology build and never on redraw', async () => {
+		const groups = Array.from({ length: 100 }, (_, i) => ({ series: [3 * i + 3, 3 * i + 1, 3 * i + 2], dir: 1 }));
+		const expected = groups.flatMap(({ series: [c, a, b] }) => stackGroup([a, b, c], [b, a, c]));
+		const f = makeProbedPlot({ count: 300, stack: { groups }, paths: customPaths(0, false) });
+		try {
+			await Promise.resolve();
+			assert.equal(f.groupBuilds, 1);
+			assertOrder(f, expected);
+			const reads = groups.map(() => [0, 0, 0]);
+			// Observe cloned declarations after initial stacking to isolate draw-time topology work.
+			caches.get(f.u).stackGroups.forEach((group, gi) => {
+				group.series.forEach((si, j) => Object.defineProperty(group.series, j, {
+					get() {
+						reads[gi][j]++;
+						return si;
+					},
+				}));
+			});
+			for (const [name, change, traversals] of [
+				['cached redraw', () => f.u.redraw(false), 0],
+				['edited topology', () => { f.u.setBand(0, { series: [3, 1] }); f.u.redraw(false); }, 1],
+				['cached edited topology', () => f.u.redraw(false), 0],
+				['restored topology', () => { f.u.setBand(0, { series: [1, 3] }); f.u.redraw(false); }, 1],
+				['path rebuild', () => f.u.redraw(), 0],
+			]) {
+				reads.forEach(row => row.fill(0));
+				f.events.length = 0;
+				const before = f.groupBuilds;
+				change();
+				await Promise.resolve();
+				assert.equal(f.groupBuilds, before + traversals, name);
+				assert.deepEqual(reads, groups.map(() => Array(3).fill(traversals)), name + ': each declaration element is read once per build, never during paint');
+				assertOrder(f, expected);
+			}
+		}
+		finally { f.u.destroy(); }
+	});
+
+	it('rebuilds a fragmented single stack declaration with linear reads and none on cached redraw', async () => {
+		const starts = Array.from({ length: 16 }, (_, i) => 3 * i + 1);
+		// Interleave intervals: each local declaration is [a+2, a, a+1], not numeric order.
+		const series = [2, 0, 1].flatMap(offset => starts.map(a => a + offset));
+		const expected = starts.flatMap(a => stackGroup([a, a + 1, a + 2], [a + 1, a, a + 2]));
+		const f = makeProbedPlot({ count: series.length, stack: { groups: [{ series, dir: 1 }] }, paths: customPaths(0, false) });
+		try {
+			await Promise.resolve();
+			f.u.delBand();
+			for (const a of starts)
+				f.u.addBand(band(a, a + 2));
+
+			const members = caches.get(f.u).stackGroups[0].series;
+			let reads = 0;
+			members.forEach((si, j) => Object.defineProperty(members, j, {
+				get() { reads++; return si; },
+			}));
+			const before = f.groupBuilds;
+			f.events.length = 0;
+			f.u.redraw(false);
+			await Promise.resolve();
+			assert.equal(f.groupBuilds, before + 1);
+			assertOrder(f, expected);
+			const rebuildReads = reads;
+
+			reads = 0;
+			f.events.length = 0;
+			f.u.redraw(false);
+			await Promise.resolve();
+			assert.equal(f.groupBuilds, before + 1);
+			assertOrder(f, expected);
+			assert.equal(reads, 0, 'cached redraw must not read the stack declaration');
+			const budget = 4 * members.length;
+			assert.ok(rebuildReads <= budget, `fragmented rebuild read ${rebuildReads} declaration elements; budget is ${budget}`);
+		}
+		finally { f.u.destroy(); }
+	});
+
+	it('restricts remapping to each edited band interval without dropping or duplicating strokes', async () => {
+		const f = makeProbedPlot({ count: 7, stack: { groups: [{ series: [5, 1, 3, 2, 6], dir: 1 }] }, paths: customPaths(0, false) });
+		const original = [...stackGroup([1, 2, 3, 4, 5, 6], [6, 2, 3, 4, 1, 5]), ...ordinary(7)];
+		try {
+			await Promise.resolve();
+			assertOrder(f, original);
+			for (const [change, expected] of [
+				[() => f.u.delBand(), [1, 2, 3, 4, 5, 6, 7].flatMap(ordinary)],
+				[() => f.u.addBand(band(1, 3)), [...stackGroup([1, 2, 3], [2, 3, 1]), ...[4, 5, 6, 7].flatMap(ordinary)]],
+				[() => f.u.addBand(band(5, 6)), [...stackGroup([1, 2, 3], [2, 3, 1]), ...ordinary(4), ...stackGroup([5, 6]), ...ordinary(7)]],
+				[() => f.u.setBand(0, { series: [2, 5] }), [...ordinary(1), ...stackGroup([2, 3, 4, 5, 6], [6, 2, 4, 3, 5]), ...ordinary(7)]],
+				[() => f.u.addBand(band(1, 2), 0), original],
+				[() => f.u.delBand(1), [...stackGroup([1, 2]), ...ordinary(3), ...ordinary(4), ...stackGroup([5, 6]), ...ordinary(7)]],
+				[() => f.u.delBand(), [1, 2, 3, 4, 5, 6, 7].flatMap(ordinary)],
+				[() => f.u.setData(f.u.data), original],
+			]) {
+				const before = f.groupBuilds;
+				f.events.length = 0;
+				change();
+				assert.equal(f.groupBuilds, before, 'topology changes invalidate lazily');
+				f.u.redraw();
+				await Promise.resolve();
+				assert.equal(f.groupBuilds, before + 1);
+				assertOrder(f, expected);
+				assert.deepEqual(f.events.filter(e => !e.points && e.kind == 'stroke').map(e => e.si).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7]);
+				f.events.length = 0;
+				f.u.redraw(false);
+				await Promise.resolve();
+				assertOrder(f, expected);
+				assert.equal(f.groupBuilds, before + 1);
+			}
+		}
+		finally { f.u.destroy(); }
+	});
+
+	it('promotes a focused stack as a unit while retaining its stroke, point, and hook order', async () => {
+		const f = makeProbedPlot({ count: 6, focus: { alpha: 0.25 }, stack: { groups: [{ series: [3, 1, 2], dir: 1 }, { series: [4, 5], dir: 1 }] } });
+		const first = stackGroup([1, 2, 3], [2, 1, 3]), second = stackGroup([4, 5]);
+		try {
+			await Promise.resolve();
+			const paths = f.u.series.map(s => s._paths);
+			const builds = f.builds.slice();
+			for (const si of [3, 1, 2, 4, 6, null]) {
+				f.events.length = 0;
+				f.u.setSeries(si, { focus: true });
+				await Promise.resolve();
+				assertOrder(f, si != null && si <= 3 ? [...second, ...ordinary(6), ...first]
+					: si == 4 ? [...first, ...ordinary(6), ...second] : [...first, ...second, ...ordinary(6)]);
+				for (const e of f.events.filter(e => e.kind != 'hook'))
+					assert.equal(e.alpha, si == null || e.si == si ? 1 : 0.25);
+				assert.equal(f.groupBuilds, 1);
+				assert.deepEqual(f.builds, builds);
+				f.u.series.forEach((s, i) => assert.equal(s._paths, paths[i]));
+			}
+		}
+		finally { f.u.destroy(); }
+	});
+
+	it('reuses the mapping across zero/nonzero data changes and keeps cached redraws free of zero clips', async () => {
+		const f = makeProbedPlot({ count: 3, stack: { groups: [{ series: [3, 1, 2], dir: 1 }] }, xRange: [-1, 4] });
+		try {
+			await Promise.resolve();
+			for (const values of [[5, 0, -0, 5], [0, 0, 0, 0], [5, 5, 5, 5], [5, 0, 5, 5], [0, 0, 5, 5], [5, 5, 0, 0]]) {
+				f.events.length = 0;
+				f.u.setData([[0, 1, 2, 3], values, [2, 2, 2, 2], [3, 3, 3, 3]]);
+				await Promise.resolve();
+				assertOrder(f, stackGroup([1, 2, 3], [2, 1, 3]));
+				assert.deepEqual(f.u.data[1], values);
+				assert.deepEqual(f.u._data[1], values.map(v => v + 3));
+				assertNoZeroClips(f);
+				const paths = f.u.series.map(s => s._paths);
+				const builds = f.builds.slice();
+				f.events.length = 0;
+				f.u.redraw(false);
+				await Promise.resolve();
+				assertOrder(f, stackGroup([1, 2, 3], [2, 1, 3]));
+				assert.equal(f.groupBuilds, 1);
+				assert.deepEqual(f.builds, builds);
+				f.u.series.forEach((s, si) => assert.equal(s._paths, paths[si]));
+				assertNoZeroClips(f);
+			}
+		}
+		finally { f.u.destroy(); }
+	});
+
+	for (const [name, paths, spanGaps, alignGaps, override] of [
+		['linear spanning', uPlot.paths.linear(), true, -1, 'clear'],
+		['linear cleared gaps', uPlot.paths.linear(), false, 1, 'clear'],
+		['spline normal gaps', uPlot.paths.spline(), false, -1, 'keep'],
+		['stepped replaced gaps', uPlot.paths.stepped({ align: 1 }), false, 1, 'replace'],
+	]) {
+		it(`preserves ordinary gaps, spanGaps, alignGaps, and series.gaps: ${name}`, async () => {
+			const data = [[0, 1, 2, 3, 4, 5, 6], Array(7).fill(3), [5, 0, 0, 5, null, undefined, 5], Array(7).fill(2)];
+			const cumulative = [data[0], data[1], [8, 3, 3, 8, null, undefined, 8], [10, 5, 5, 10, 5, 5, 10]];
+			const calls = [], referenceCalls = [];
+			const series = calls => () => ({
+				spanGaps, alignGaps,
+				gaps(u, si, i0, i1, gaps) {
+					calls.push([si, i0, i1, structuredClone(gaps)]);
+					return si != 2 || override == 'keep' ? gaps : override == 'clear' ? [] : [[4.25, 5.25].map(x => u.series[si].pxRound(u.valToPos(x, 'x', true)))];
+				},
+			});
+			const options = { count: 3, paths, xRange: [0, 6], scales: { y: { range: [0, 12] } } };
+			const f = makePlot({ ...options, stack: { groups: [{ series: [1, 2, 3], dir: 1 }] }, data, series: series(calls) });
+			const reference = makePlot({ ...options, bands: [{ series: [2, 1], dir: -1 }, { series: [3, 2], dir: -1 }], data: cumulative, series: series(referenceCalls) });
+			try {
+				await Promise.resolve();
+				assertOrder(f, stackGroup([1, 2, 3]));
+				assertOrder(reference, group([1, 2, 3]));
+				assert.deepEqual(calls, referenceCalls, 'gap callbacks receive only null gaps, never zero runs');
+				if (spanGaps)
+					assert.deepEqual(calls, [], 'spanGaps still bypasses the gap callback');
+				else
+					assert.ok(calls.find(([si]) => si == 2)[3].length > 0, 'the fixture contains a real null gap');
+				for (const si of [1, 2, 3]) {
+					const built = f.u.series[si]._paths;
+					assert.deepEqual(geometryLogs(built), geometryLogs(reference.u.series[si]._paths));
+					assert.deepEqual(built.gaps, reference.u.series[si]._paths.gaps);
+					if (built.clip != null)
+						for (const e of f.events.filter(e => e.si == si && !e.points && e.kind != 'hook'))
+							assert.ok(e.clips.includes(built.clip), 'ordinary gaps still clip both paint passes');
+				}
+				assert.deepEqual(f.u._data, cumulative, 'null and undefined retain their original semantics');
+				assertNoZeroClips(f);
+				assertNoZeroClips(reference);
+			}
+			finally { f.u.destroy(); reference.u.destroy(); }
+		});
+	}
+
+	for (const [name, options, expected] of [
+		['unstacked lines', {}, [1, 2, 3].flatMap(ordinary)],
+		['explicit bands', { bands: [band(3, 1), band(2, 3)] }, group([1, 2, 3])],
+		['mixed-sign bars', { stack: { groups: [{ series: [3, 1, 2], dir: 0 }] }, paths: uPlot.paths.bars({ size: [0.6, 100] }) }, [1, 2, 3].flatMap(ordinary)],
+		['mixed-sign bars inside an independent stack interval', {
+			count: 5, stack: { groups: [{ series: [1, 5], dir: 1 }, { series: [4, 2], dir: 0 }] },
+			paths: uPlot.paths.bars({ size: [0.6, 100] }),
+			data: [[0, 1, 2, 3], [3, 3, 3, 3], [2, -2, 0, 2], [5, 0, 0, 5], [4, -4, 0, 4], [2, 0, 0, 2]],
+		}, stackGroup([1, 2, 3, 4, 5], [5, 2, 3, 4, 1])],
+	]) {
+		it(`leaves unrelated stroke slots unchanged: ${name}`, async () => {
+			const f = makePlot({
+				count: 3, xRange: [0, 3], data: [[0, 1, 2, 3], [3, -3, -3, 3], [5, 0, 0, -5], [2, -2, -2, 2]],
+				scales: { y: { range: [-12, 12] } }, ...options,
+			});
+			try {
+				await Promise.resolve();
+				assertOrder(f, expected);
+				assertNoZeroClips(f);
+				f.u.series.slice(1).forEach((s, i) => assert.deepEqual(geometryLogs(s._paths), f.geometry[i + 1]));
+			}
+			finally { f.u.destroy(); }
+		});
 	}
 });

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — Bokeh</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading Bokeh…</p></main>
+		<script src="https://cdn.jsdelivr.net/npm/@bokeh/bokehjs@3.10.1/build/js/bokeh.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/@bokeh/bokehjs@3.10.1/build/js/bokeh-api.min.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-bokeh.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'bokeh', createDemo);
+		</script>
+	</body>
+</html>

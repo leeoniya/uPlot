@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — ApexCharts</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+	</head>
+	<body>
+		<main id="demo"><p>Loading ApexCharts…</p></main>
+		<script src="https://cdn.jsdelivr.net/npm/apexcharts@8.4.1/dist/apexcharts.min.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-apexcharts.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'apexcharts', createDemo);
+		</script>
+	</body>
+</html>

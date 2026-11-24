@@ -540,7 +540,7 @@ export default function uPlot(opts, data, then) {
 	const stackedSeries = [];
 
 	stackGroups.forEach(group => {
-		group.series.forEach(si => { stackedSeries[si] = true; });
+		group.series.forEach(si => { stackedSeries[si] = group; });
 	});
 
 	const xScaleKey = mode == 2 ? series[1].facets[0].scale : series[0].scale;
@@ -2096,6 +2096,7 @@ export default function uPlot(opts, data, then) {
 	const nextBand = [];
 	const bandHasData = [];
 	let bandGroupsDirty = true;
+	let stackOrder = EMPTY_ARR;
 
 	function invalidateBandGroups() {
 		bandGroupsDirty = true;
@@ -2135,6 +2136,7 @@ export default function uPlot(opts, data, then) {
 				firstBand.fill(-1);
 				nextBand.length = bandHasData.length = bands.length;
 				bandHasData.fill(false);
+				let stackSlots = stackGroups.length > 0 && bands.length > 0 ? [] : null;
 
 				// Prepend in reverse to visit each owner's bands in their original order.
 				for (let bi = bands.length - 1; bi >= 0; bi--) {
@@ -2158,7 +2160,38 @@ export default function uPlot(opts, data, then) {
 							end = max(end, bandEnds[j]);
 
 						bandEnds[i] = end;
+
+						// Members of the same stack and interval share their numeric slots, even when hidden.
+						if (stackSlots != null) {
+							let byGroup = new Map();
+							for (let j = i; j <= end; j++) {
+								let group = stackedSeries[j];
+								if (group != null && group.dir != 0) {
+									let slots = byGroup.get(group);
+									if (slots == null)
+										byGroup.set(group, slots = []);
+									slots.push(j);
+									stackSlots[j] = slots;
+								}
+							}
+						}
+
 						i = end;
+					}
+				}
+
+				stackOrder = EMPTY_ARR;
+				if (stackSlots?.length) {
+					stackOrder = [];
+					// Consume each interval's slots from highest to lowest in declaration order.
+					for (let group of stackGroups) {
+						if (group.dir != 0) {
+							for (let si of group.series) {
+								let slots = stackSlots[si];
+								if (slots != null)
+									stackOrder[slots.pop()] = si;
+							}
+						}
 					}
 				}
 
@@ -2179,7 +2212,7 @@ export default function uPlot(opts, data, then) {
 							for (let j = i; j <= end; j++)
 								drawSeriesPart(j, BAND_CLIP_FILL, false);
 							for (let j = i; j <= end; j++)
-								drawSeriesPart(j, BAND_CLIP_STROKE, false);
+								drawSeriesPart(stackOrder[j] ?? j, BAND_CLIP_STROKE, false);
 							for (let j = i; j <= end; j++)
 								drawSeriesPart(j, 0, true);
 						}
@@ -2380,12 +2413,12 @@ export default function uPlot(opts, data, then) {
 				ctx.clip(bandClip);
 				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				canStroke && doStroke(strokeStyle, strokePath);
 			}
 			else if (flags & BAND_CLIP_STROKE) {
 				doFill(fillStyle, fillPath);
 				ctx.clip(bandClip);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				canStroke && doStroke(strokeStyle, strokePath);
 			}
 			else if (flags & BAND_CLIP_FILL) {
 				canStroke && ctx.save();
@@ -2396,13 +2429,13 @@ export default function uPlot(opts, data, then) {
 					ctx.restore();
 					ctxFill = _ctxFill;
 					ctxStroke = _ctxStroke;
-					doStroke(strokeStyle, strokePath, lineWidth);
+					doStroke(strokeStyle, strokePath);
 				}
 			}
 		}
 		else {
 			doFill(fillStyle, fillPath);
-			doStroke(strokeStyle, strokePath, lineWidth);
+			canStroke && doStroke(strokeStyle, strokePath);
 		}
 
 		if (boundsClip || gapsClip || bandClip) {
@@ -2412,20 +2445,18 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function doStroke(strokeStyle, strokePath, lineWidth) {
-		if (lineWidth > 0) {
-			if (strokePath instanceof Map) {
-				strokePath.forEach((strokePath, strokeStyle) => {
-					ctx.strokeStyle = ctxStroke = strokeStyle;
-					if (isArr(strokePath))
-						strokePath.forEach(path => ctx.stroke(path));
-					else
-						ctx.stroke(strokePath);
-				});
-			}
-			else
-				strokePath != null && strokeStyle != null && ctx.stroke(strokePath);
+	function doStroke(strokeStyle, strokePath) {
+		if (strokePath instanceof Map) {
+			strokePath.forEach((strokePath, strokeStyle) => {
+				ctx.strokeStyle = ctxStroke = strokeStyle;
+				if (isArr(strokePath))
+					strokePath.forEach(path => ctx.stroke(path));
+				else
+					ctx.stroke(strokePath);
+			});
 		}
+		else
+			ctx.stroke(strokePath);
 	}
 
 	function doFill(fillStyle, fillPath) {

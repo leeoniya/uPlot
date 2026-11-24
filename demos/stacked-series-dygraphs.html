@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Zeros — dygraphs</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dygraphs@2.2.2/dist/dygraph.min.css">
+		<link rel="stylesheet" href="./stacked-series-compare.css">
+		<style>
+			/* dygraphs binds hover separately from interactionModel. */
+			#plot { pointer-events: none; }
+		</style>
+	</head>
+	<body>
+		<main id="demo"><p>Loading dygraphs…</p></main>
+		<script src="https://cdn.jsdelivr.net/npm/dygraphs@2.2.2/dist/dygraph.min.js"></script>
+		<script type="module">
+			import {mountDemo} from './stacked-series-compare.js';
+			import {createDemo} from './stacked-series-dygraphs.js';
+			window.stackedDemo = await mountDemo(document.querySelector('#demo'), 'dygraphs', createDemo);
+		</script>
+	</body>
+</html>
