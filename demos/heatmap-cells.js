@@ -36,29 +36,41 @@ function labeledAxis(axis) {
 	};
 }
 
-export function createDemo(root, frames, { otelClassic, otelNhcb } = {}) {
+const format = value => Number(value.toPrecision(5)).toString();
+const geometricCells = frame => heatmapCells(frame, { geometric: true });
+const snapshotDataset = frame => ({ ...geometricCells(frame), zeroHeight: 4, formatY: format });
+
+export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parityZero } = {}) {
 	const frame = type => frames.find(f => f.schema.meta?.type == type);
-	const sources = { classic: frame('heatmap-rows'), otelClassic, otelNhcb };
+	const sources = {
+			classic: [frame('heatmap-rows'), heatmapRows],
+			otelClassic: [otelClassic, heatmapRows],
+			otelNhcb: [otelNhcb, f => heatmapCells(f, { ordinal: true })],
+			parity: [parity, geometricCells],
+			parityZero: [parityZero, f => ({ ...geometricCells(f), zeroHeight: 4 })],
+		};
 	const datasets = {
-		synthetic: heatmapCells(frame('heatmap-cells'), { geometric: true }),
-		snapshot1: heatmapCells(snapshot1, { geometric: true }),
-		snapshot2: heatmapCells(snapshot2, { geometric: true }),
+		synthetic: geometricCells(frame('heatmap-cells')),
+		snapshot1: snapshotDataset(snapshot1),
+		snapshot2: snapshotDataset(snapshot2),
 		categorical: heatmapRows({
 			schema: { fields: [{ name: 'Method', type: 'string' }, { name: '2xx' }, { name: '4xx' }, { name: '5xx' }] },
 			data: { values: [['GET', 'POST', 'DELETE'], [25, 18, 6], [4, 3, 0], [1, 0, 2]] },
 		}),
 	};
 	const select = root.querySelector('#dataset');
-	for (const [name, source] of Object.entries(sources))
+	for (const [name, [source]] of Object.entries(sources))
 		select.querySelector(`option[value="${name}"]`).disabled = !source;
 	select.value = 'synthetic';
 	let view = createView(root, datasets.synthetic);
 	function setDataset() {
 		const name = select.value;
-		const source = sources[name];
-		if (source) datasets[name] ??= source.schema.meta.type === 'heatmap-rows' ? heatmapRows(source) : heatmapCells(source, { ordinal: true });
+		if (datasets[name] == null) {
+			const [source, adapt] = sources[name];
+			datasets[name] = adapt(source);
+		}
 		view.destroy();
-		view = createView(root, datasets[name], name === 'snapshot1' || name === 'snapshot2');
+		view = createView(root, datasets[name]);
 	}
 	select.disabled = false;
 	select.addEventListener('change', setDataset);
@@ -72,8 +84,9 @@ export function createDemo(root, frames, { otelClassic, otelNhcb } = {}) {
 	};
 }
 
-function createView(root, dataset, isSnapshot = false) {
-	const { xSize, data: sourceData, axes, scales } = dataset;
+function createView(root, dataset) {
+	const { xSize, data: sourceData, axes, scales, zeroHeight = 0, formatY = formatSeconds } = dataset;
+	const hasZeroBucket = zeroHeight > 0;
 	const labeledX = labeledAxis(axes?.[0]);
 	const labeledY = labeledAxis(axes?.[1]);
 	const intervalLabel = xSize == 60 ? 'one-minute' : xSize % 60 == 0 ? `${xSize / 60}-minute` : `${xSize}-second`;
@@ -188,8 +201,7 @@ function createView(root, dataset, isSnapshot = false) {
 		}
 		return signedData;
 	}
-	const format = value => Number(value.toPrecision(5)).toString();
-	const formatY = isSnapshot ? format : formatSeconds;
+
 
 	const readout = root.querySelector('#hover');
 	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
@@ -223,14 +235,14 @@ function createView(root, dataset, isSnapshot = false) {
 	updateColorScale();
 	const signed = root.querySelector('#signed-data');
 	const logOptions = yScale.querySelectorAll('option[value^="log"]');
-	if (isSnapshot || labeledY) signed.checked = false;
+	if (hasZeroBucket || labeledY) signed.checked = false;
 	const previousScale = yScale.value;
 	if (labeledY) yScale.value = 'linear';
 	if (signed.checked) data = mirroredData();
 	heightValue.data = `${height.value}px`;
 
 	function createPlot(width, plotHeight = height.valueAsNumber) {
-		const nonpositive = signed.checked || isSnapshot;
+		const nonpositive = signed.checked || hasZeroBucket;
 		for (const option of logOptions) option.disabled = nonpositive;
 		if (nonpositive && yScale.value.startsWith('log')) yScale.value = 'asinh';
 		const mode = yScale.value;
@@ -239,10 +251,10 @@ function createView(root, dataset, isSnapshot = false) {
 		const yRange = isLog ? [1, logBase] : [0, 1];
 		const scaleLabel = isLog ? (logBase == 10 ? 'log₁₀' : 'log₂') : mode;
 		let asinhThreshold = 1;
-		const zeroHeight = isSnapshot ? 4 : 0;
+
 		let zeroEdge = 0, autoBounds;
 
-		function snapshotRange(u) {
+		function zeroBucketRange(u) {
 			const { height } = u.bbox;
 			let [min, max] = yRange;
 			if (mode == 'linear') {
@@ -276,9 +288,9 @@ function createView(root, dataset, isSnapshot = false) {
 					distr: isLog ? 3 : mode == 'asinh' ? 4 : 1,
 					log: logBase,
 					asinh: () => asinhThreshold,
-					axis: !isSnapshot && mode == 'linear' ? 1 : undefined,
-					scan: !isSnapshot && mode == 'linear' ? () => yRange.slice() : false,
-					range: isSnapshot ? u => autoBounds = snapshotRange(u) : mode == 'linear' ? undefined : () => yRange,
+					axis: !hasZeroBucket && mode == 'linear' ? 1 : undefined,
+					scan: !hasZeroBucket && mode == 'linear' ? () => yRange.slice() : false,
+					range: hasZeroBucket ? u => autoBounds = zeroBucketRange(u) : mode == 'linear' ? undefined : () => yRange,
 				},
 			},
 			axes: [
@@ -294,11 +306,11 @@ function createView(root, dataset, isSnapshot = false) {
 					...labeledY?.opts,
 				},
 			],
-			hooks: isSnapshot ? { setSize: [u => {
+			hooks: hasZeroBucket ? { setSize: [u => {
 				// Range callbacks precede layout. Refresh only automatic bounds once the plot height changes.
 				const y = u.scales.y;
 				if (autoBounds != null && y.min === autoBounds[0] && y.max === autoBounds[1]) {
-					const [min, max] = snapshotRange(u);
+					const [min, max] = zeroBucketRange(u);
 					if (y.min !== min || y.max !== max) u.setRange('y', null, null);
 				}
 			}] } : {},
@@ -309,7 +321,7 @@ function createView(root, dataset, isSnapshot = false) {
 				cellGap: () => gap,
 
 				zeroHeight,
-				grid: dataset.grid ?? (isSnapshot || signed.checked ? { y: { distr: 3, factor: dataset.factor } } : undefined),
+				grid: dataset.grid ?? (hasZeroBucket || signed.checked ? { y: { distr: 3, factor: dataset.factor } } : undefined),
 				colors: palette,
 				colorIdx: count => colorIdx(count),
 				onPrepare(u, minY, maxY, threshold, zeroMin, zeroMax) {
@@ -397,7 +409,7 @@ function createView(root, dataset, isSnapshot = false) {
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
 	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = false;
-	signed.disabled = isSnapshot || !!labeledY;
+	signed.disabled = hasZeroBucket || !!labeledY;
 	yScale.disabled = !!labeledY;
 
 	return {

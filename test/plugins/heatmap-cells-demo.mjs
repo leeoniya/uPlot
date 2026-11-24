@@ -132,8 +132,8 @@ describe('heatmap cells demo', () => {
 			demo = createDemo(root, frames);
 			await Promise.resolve();
 			assert.ok(select, 'demo has a dataset selector');
-			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'otelClassic', 'otelNhcb', 'categorical']);
-			assert.deepEqual(Array.from(select.options).filter(o => o.disabled).map(o => o.value), ['otelClassic', 'otelNhcb']);
+			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'otelClassic', 'otelNhcb', 'parity', 'parityZero', 'categorical']);
+			assert.deepEqual(Array.from(select.options).filter(o => o.disabled).map(o => o.value), ['otelClassic', 'otelNhcb', 'parity', 'parityZero']);
 			assert.equal(select.value, 'synthetic');
 			assert.equal(select.disabled, false);
 			const original = demo.plot.data[1];
@@ -326,6 +326,29 @@ describe('heatmap cells demo', () => {
 			assert.deepEqual(demo.plot.data[1], original);
 		}
 		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('renders and hovers both sparse parity frames on numeric duration scales', async () => {
+		const root = createDemoRoot();
+		const demo = createDemo(root, demoFrames(), { parity: fixtureFrame('parity'), parityZero: fixtureFrame('parity-zero') });
+		try {
+			for (const [name, size, scale, hover] of [
+				['parity', 1076, 'log', 'Y: 43.2 µs–51.3 µs · Count: 1'],
+				['parityZero', 1116, 'asinh', 'Y: -1.6 µs–1.6 µs · Count: 400'],
+			]) {
+				selectDataset(root, name);
+				await settleLayout();
+				const u = demo.plot;
+				const [xs, lo, hi] = u.data[1];
+				assert.equal(xs.length, size);
+				assert.equal(u.scales.x.min, xs[0] - 30);
+				assert.equal(root.querySelector('#y-scale').value, scale);
+				assert.deepEqual(u.axes[1].values(u, [0.001, 1]), ['1 ms', '1 s']);
+				u.setCursor({ left: u.valToPos(xs[0] - 15, 'x'), top: u.valToPos((lo[0] + hi[0]) / 2, 'y') });
+				assert.ok(root.querySelector('#hover').textContent.endsWith(hover));
+			}
+		}
+		finally { demo.destroy(); root.remove(); }
 	});
 
 	it('draws and hovers Snapshot 1 upper buckets at their projected X and Y bounds at DPR 1.5', async () => {
