@@ -224,6 +224,11 @@ export class DateZoned extends Date {
 
             if (f.endsWith('GMT'))
                 f += '+00:00';
+            // before standard time, many zones used local mean time, whose offset has seconds
+            // (Europe/Berlin before 1893 is GMT+00:53:28); drop them to keep the fields at the
+            // fixed offsets the getters read
+            else if (f.at(-6) == ':')
+                f = f.slice(0, -3);
 
             this.#str = f;
         }
