@@ -22,18 +22,24 @@ const fills = u => lastDraw(u).filter(e => e[0] === 'fill').flatMap(e => e.slice
 const pathRects = path => path.log.flatMap(e => e[0] === 'rect' ? e.slice(1) : []);
 const rects = u => fills(u).flatMap(pathRects);
 
-// Normalize vertical coverage only; keep column widths, gaps, and overlaps observable.
-function coverage(rectangles) {
-	const result = [];
-	for (const [x, y, w, h] of rectangles.slice().sort((a, b) => a[0] - b[0] || a[2] - b[2] || a[1] - b[1])) {
+// Match each painted run to whole adjacent source cells. Use the source endpoints
+// directly: summing fractional heights need not recover a shared edge exactly.
+function checkCoverage(rectangles, boxes, label = 'source-cell coverage') {
+	const order = (a, b) => a[0] - b[0] || a[1] - b[1];
+	const cells = boxes.slice().sort((a, b) => order(a.rect, b.rect));
+	let i = 0;
+	for (const [x, y, w, h] of rectangles.slice().sort(order)) {
 		assert.ok(w > 0 && h > 0, 'drawn rectangles have positive area');
-		const previous = result.at(-1);
-		if (previous && previous[0] == x && previous[2] == w && previous[1] + previous[3] == y)
-			previous[3] += h;
-		else
-			result.push([x, y, w, h]);
+		let top = y;
+		do {
+			const cell = cells[i++];
+			assert.ok(cell, label);
+			assert.deepEqual([x, top, w], cell.rect.slice(0, 3), label);
+			top = cell.bottom;
+		} while (top - y < h);
+		assert.equal(top - y, h, label);
 	}
-	return result;
+	assert.equal(i, cells.length, label);
 }
 
 const backward = ({ distr, asinh = 1 }, v) => distr == 3 ? Math.exp(v) : distr == 4 ? Math.sinh(v) * asinh : v;
@@ -102,19 +108,20 @@ function close(actual, expected, tolerance = 1e-9) {
 	actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} != ${expected}`));
 }
 
-function projectedRect(u, x0, x1, y0, y1) {
+function projectedBox(u, x0, x1, y0, y1) {
 	const { left, top, width, height } = u.bbox;
-	const px = v => Math.max(left, Math.min(left + width, Math.round(u.valToPos(v, 'x', true))));
-	const py = v => Math.max(top, Math.min(top + height, Math.round(u.valToPos(v, 'y', true))));
-	return [px(x0), py(y1), px(x1) - px(x0), py(y0) - py(y1)];
+	const px = v => Math.max(left, Math.min(left + width, u.valToPos(v, 'x', true)));
+	const py = v => Math.max(top, Math.min(top + height, u.valToPos(v, 'y', true)));
+	const x = px(x0), y = py(y1), right = px(x1), bottom = py(y0);
+		return { right, bottom, rect: [x, y, right - x, bottom - y] };
 }
 
 // The oracle uses the fixture's explicit edges, not plugin row IDs, paths, or lookup results.
 function oracleRects(u, f) {
 	const { left, top, width, height } = u.bbox;
-	const xs = f.xEdges.map(v => Math.max(left, Math.min(left + width, Math.round(u.valToPos(v, 'x', true)))));
-	const ys = f.yEdges.map(v => Math.max(top, Math.min(top + height, Math.round(u.valToPos(v, 'y', true)))));
-	return f.cells.map(({ col, row }, id) => ({ id,
+	const xs = f.xEdges.map(v => Math.max(left, Math.min(left + width, u.valToPos(v, 'x', true))));
+	const ys = f.yEdges.map(v => Math.max(top, Math.min(top + height, u.valToPos(v, 'y', true))));
+	return f.cells.map(({ col, row }, id) => ({ id, right: xs[col + 1], bottom: ys[row],
 		rect: [xs[col], ys[row + 1], xs[col + 1] - xs[col], ys[row] - ys[row + 1]],
 	})).filter(({ rect }) => rect[2] > 0 && rect[3] > 0);
 }
@@ -122,8 +129,8 @@ function oracleRects(u, f) {
 function oracleHit(boxes, px, py) {
 	// Reverse source order implements last-source precedence without scanning past a hit.
 	for (let i = boxes.length - 1; i >= 0; i--) {
-		const { id, rect } = boxes[i];
-		if (px >= rect[0] && px <= rect[0] + rect[2] && py >= rect[1] && py <= rect[1] + rect[3])
+		const { id, rect, right, bottom } = boxes[i];
+		if (px >= rect[0] && px <= right && py >= rect[1] && py <= bottom)
 			return id;
 	}
 	return null;
@@ -150,15 +157,15 @@ function pixelQuery(u, px, py, expected, mapping = canvasMapping(u)) {
 
 function checkOracle(u, f) {
 	const boxes = oracleRects(u, f);
-	assert.deepEqual(coverage(rects(u)), coverage(boxes.map(b => b.rect)), 'exact rounded, clipped source-cell coverage');
+	checkCoverage(rects(u), boxes);
 	const probes = [];
-	for (const { rect: [x, y, w, h] } of boxes) {
+	for (const { rect: [x, y, w, h], right, bottom } of boxes) {
 		probes.push([x + w / 2, y + h / 2]);
 		for (const delta of [-1e-7, 0, 1e-7]) {
-			probes.push([x + delta, y + h / 2], [x + w + delta, y + h / 2],
-				[x + w / 2, y + delta], [x + w / 2, y + h + delta]);
+			probes.push([x + delta, y + h / 2], [right + delta, y + h / 2],
+				[x + w / 2, y + delta], [x + w / 2, bottom + delta]);
 		}
-		probes.push([x, y], [x + w, y], [x, y + h], [x + w, y + h]);
+		probes.push([x, y], [right, y], [x, bottom], [right, bottom]);
 	}
 	// Sample gaps and offscreen regions as well as occupied edges.
 	for (let ix = -1; ix <= 18; ix++) {
@@ -188,9 +195,13 @@ function hover(u, x, y, id) {
 	assert.equal(u.cursor.dataIdx(u, 1), id);
 }
 
-function bounds(u, idx, canvas = false, xSize = 1) {
+function sourceBox(u, idx, xSize = 1) {
 	const [x, lo, hi] = u.data[1];
-	const rect = projectedRect(u, x[idx] - xSize, x[idx], lo[idx], hi[idx]);
+	return projectedBox(u, x[idx] - xSize, x[idx], lo[idx], hi[idx]);
+}
+
+function bounds(u, idx, canvas = false, xSize = 1) {
+	const { rect } = sourceBox(u, idx, xSize);
 	const mapping = canvasMapping(u);
 	return canvas ? rect : [rect[0] / mapping.x - mapping.left, rect[1] / mapping.y - mapping.top,
 		rect[2] / mapping.x, rect[3] / mapping.y];
@@ -273,13 +284,13 @@ function colorBoundaryCounts(mode, min, max) {
 function checkDemoColors(u, mode, min, max) {
 	const expected = Array.from({ length: 24 }, () => []);
 	u.data[1][3].forEach((count, i) => {
-		const rect = bounds(u, i, true, 60);
-		if (rect[2] > 0 && rect[3] > 0)
-			expected[demoColorIndex(count, mode, min, max)].push(rect);
+		const box = sourceBox(u, i, 60);
+		if (box.rect[2] > 0 && box.rect[3] > 0)
+			expected[demoColorIndex(count, mode, min, max)].push(box);
 	});
 	const paths = fills(u).slice(-24);
 	assert.equal(paths.length, 24);
-	paths.forEach((path, color) => assert.deepEqual(coverage(pathRects(path)), coverage(expected[color]), `${mode} palette index ${color}`));
+	paths.forEach((path, color) => checkCoverage(pathRects(path), expected[color], `${mode} palette index ${color}`));
 }
 
 function withoutColorMath(fn) {
@@ -380,10 +391,10 @@ describe('heatmapPlugin uniform grid', () => {
 		const boxes = oracleRects(u, f);
 		const gapX = gap * mapping.x, gapY = gap * mapping.y;
 		const minSpan = (edges, key, start, end) => {
-			const pixels = edges.map(value => Math.round(u.valToPos(value, key, true)));
-			const spans = edges.slice(1).map((value, i) => {
-				if (pixels[i] < start || pixels[i] > end || pixels[i + 1] < start || pixels[i + 1] > end) return Infinity;
-				return Math.abs(pixels[i + 1] - pixels[i]) || Infinity;
+			const pixels = edges.map(value => u.valToPos(value, key, true));
+			const spans = pixels.slice(1).map((p, i) => {
+				const lo = Math.min(p, pixels[i]), hi = Math.max(p, pixels[i]);
+				return Math.max(lo, start) < Math.min(hi, end) ? hi - lo : Infinity;
 			});
 			return Math.min(...spans);
 		};
@@ -463,7 +474,7 @@ describe('heatmapPlugin uniform grid', () => {
 					u.pxRatio = ratio;
 					u.bbox.width = u.bbox.height = 100 * ratio;
 					plugin.hooks.setData(u);
-					for (const [w, h] of [[1, 20], [20, 1], [5, 5], [10, 10], [2, 2], [20, 20]]) {
+					for (const [w, h] of [[1, 20], [20, 1], [5, 5], [10, 10], [2, 2], [19.25, 19.25], [19.5, 19.5], [20, 20]]) {
 						u.valToPos = (v, key) => (key == 'x' ? v * w : 100 - v * h) * ratio;
 						drawn.length = 0;
 						plugin.hooks.draw(u);
@@ -503,17 +514,18 @@ describe('heatmapPlugin uniform grid', () => {
 		finally { plugin.hooks.destroy(); }
 	});
 
-	it('ignores clipped and collapsed intervals and applies one conservative decision across both axes', () => {
+	it('uses full spans of intersecting intervals and ignores offscreen and collapsed intervals', () => {
 		const f = fixture({ nx: 3, ny: 3, y: { distr: 1 }, ySize: 1, include: () => true });
 		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: 1 }, f.data);
 		try {
 			plugin.hooks.setData(u);
 			for (const [xs, ys, count, left] of [
 				[[0, 1, 50, 100], [100, 80, 40, 0], 3, 0],
-				[[-1, 1, 50, 100], [101, 99, 50, 0], 4, 1.5],
+				[[-1, 1, 50, 100], [101, 99, 50, 0], 3, 0],
+				[[-50, 1, 50, 100], [150, 99, 50, 0], 4, 1.5],
 				[[0, 0, 50, 100], [100, 100, 50, 0], 4, .5],
-				[[-100, -50, -10, 110], [100, 80, 40, 0], 1, 0],
-				[[0, 30, 60, 100], [200, -10, -20, -30], 3, 0],
+				[[-100, -50, -10, 110], [100, 80, 40, 0], 3, .5],
+				[[0, 30, 60, 100], [200, -10, -20, -30], 3, .5],
 			]) {
 				u.valToPos = (v, key) => (key == 'x' ? xs : ys)[v];
 				drawn.length = 0;
@@ -521,6 +533,23 @@ describe('heatmapPlugin uniform grid', () => {
 				const rects = drawn.flatMap(pathRects);
 				assert.equal(rects.length, count);
 				assert.equal(rects[0][0], left);
+			}
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('retains a quarter-pixel gap when a second zoom leaves no complete row or column', () => {
+		const f = fixture({ nx: 2, ny: 2, y: { distr: 1 }, ySize: 1, include: () => true });
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: .25 }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			for (const size of [50, 100]) {
+				u.valToPos = (v, key) => 50 + (v - 1) * (key == 'x' ? size : -size);
+				drawn.length = 0;
+				plugin.hooks.draw(u);
+				const rects = drawn.flatMap(pathRects);
+				assert.equal(rects.length, 4);
+				close(rects[0], [.125, 50.125, 49.75, 49.75]);
 			}
 		}
 		finally { plugin.hooks.destroy(); }
@@ -759,8 +788,7 @@ describe('heatmapPlugin uniform grid', () => {
 				const { col, row } = f.cells[id];
 				const mirror = boxes.find(b => f.cells[b.id].col == col && f.cells[b.id].row == rows - row - 1).rect;
 				assert.equal(x, mirror[0]); assert.equal(w, mirror[2]);
-				assert.ok(Math.abs(h - mirror[3]) <= 1);
-				assert.ok(Math.abs(y + h + mirror[1] - (2 * u.bbox.top + u.bbox.height)) <= 1);
+				close([h, y + h + mirror[1]], [mirror[3], 2 * u.bbox.top + u.bbox.height]);
 			}
 		});
 
@@ -910,13 +938,13 @@ describe('heatmapPlugin uniform grid', () => {
 	it('draws sparse zero and regular buckets without filling missing times', async () => {
 		const { u, hovered } = await mountZeroBucket([[1, -2, -1], [1, -1, -.5], [1, -tiny, tiny], [1, .5, 1],
 			[1, 1, 2], [3, 1, 2], [4, -tiny, tiny]], 12);
-		const regular = [0, 1, 3, 4, 5].map(id => bounds(u, id, true));
+		const regular = [0, 1, 3, 4, 5].map(id => sourceBox(u, id));
 		const zero = [2, 6].map(id => {
-			const [x, center, w] = bounds(u, id, true);
-			return [x, center - 6, w, 12];
+			const [x, , w] = bounds(u, id, true);
+			return [x, u.valToPos(0, 'y', true) - 6, w, 12];
 		});
 		const [ordinaryPath, zeroPath] = fills(u);
-		assert.deepEqual(coverage(pathRects(ordinaryPath)), coverage(regular));
+		checkCoverage(pathRects(ordinaryPath), regular);
 		assert.deepEqual(pathRects(zeroPath), zero);
 		for (const [i, [x, y, w, h]] of zero.entries()) {
 			for (const dy of [1, h - 1])
@@ -930,7 +958,7 @@ describe('heatmapPlugin uniform grid', () => {
 
 	it('uses the projected zero height for cell gaps and the cursor outline', async () => {
 		const { u, hovered } = await mountZeroBucket([[1, -2, -1], [1, -tiny, tiny], [1, 1, 2]], 16, .5);
-		const [x, center, w] = bounds(u, 1, true);
+		const [x, , w] = bounds(u, 1, true), center = u.valToPos(0, 'y', true);
 		const rect = [x + .25, center - 8 + .25, w - .5, 15.5];
 		assert.deepEqual(pathRects(fills(u)[1]), [rect]);
 		checkZeroCursor(u, hovered, x + w / 2, center, 1, rect);
@@ -938,7 +966,7 @@ describe('heatmapPlugin uniform grid', () => {
 
 	it('clamps an oversized zero bucket between mirrored neighbors and drops it when zoomed wholly away', async () => {
 		const { u, hovered } = await mountZeroBucket([[1, -2, -1], [1, -tiny, tiny], [1, 1, 2]], 500);
-		const gap = projectedRect(u, 0, 1, -1, 1);
+		const gap = projectedBox(u, 0, 1, -1, 1).rect;
 		assert.deepEqual(pathRects(fills(u)[1]), [gap]);
 		const [x, y, w, h] = gap;
 		checkZeroCursor(u, hovered, x + w / 2, y + h - 1, 1, gap);
@@ -956,7 +984,7 @@ describe('heatmapPlugin uniform grid', () => {
 		const { u, hovered } = await mountZeroBucket([[1, -tiny, tiny]], () => height);
 		function checkHeight(clippedEdge) {
 			const [x, , w] = bounds(u, 0, true);
-			const center = Math.round(u.valToPos(0, 'y', true));
+			const center = u.valToPos(0, 'y', true);
 			const half = height * canvasMapping(u).y / 2;
 			const top = clippedEdge === 'top' ? u.bbox.top : center - half;
 			const bottom = clippedEdge === 'bottom' ? u.bbox.top + u.bbox.height : center + half;
@@ -1040,7 +1068,7 @@ describe('heatmapPlugin uniform grid', () => {
 				plugin.hooks.setData(u);
 				assert.deepEqual(prepared, [[u, -4, 4, .125]]);
 				plugin.hooks.draw(u);
-				assert.deepEqual(coverage(drawn.flatMap(pathRects)), coverage(oracleRects(u, f).map(b => b.rect)));
+				checkCoverage(drawn.flatMap(pathRects), oracleRects(u, f));
 				pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
 			}
 			finally { plugin.hooks.destroy(); }
@@ -1170,7 +1198,7 @@ describe('heatmapPlugin uniform grid', () => {
 				});
 				assert.equal(allocations.length, 1, 'draw and hover allocate no additional typed indexes');
 				u.data = coordinates;
-				assert.deepEqual(coverage(pathRects(drawn.at(-1))), coverage(oracleRects(u, f).map(b => b.rect)));
+				checkCoverage(pathRects(drawn.at(-1)), oracleRects(u, f));
 				for (const next of [empty(), coordinates, coordinates]) {
 					u.data = next;
 					withoutIndexes(() => plugin.hooks.setData(u), true);
@@ -1345,9 +1373,7 @@ describe('heatmapPlugin uniform grid', () => {
 		// IDs by column: [0,1,2], [3,4], [5,6]; omitted buckets have no source IDs.
 		for (const [x, y, id] of [[1, 0, 3], [1, 1, 4], [2, 0, 5], [2, 1, 6],
 			[1, .5, 1], [2, .5, null], [1.5, .5, null], [2.5, .5, null]]) {
-			u.setCursor({ left: (Math.round(u.valToPos(x, 'x', true)) - u.bbox.left) / u.pxRatio,
-				top: (Math.round(u.valToPos(y, 'y', true)) - u.bbox.top) / u.pxRatio });
-			assert.equal(u.cursor.dataIdx(u, 1), id);
+			hover(u, x, y, id);
 			assert.deepEqual(calls.at(-1), [u, id]);
 		}
 		assert.deepEqual(fills(u).map(path => pathRects(path).length), [3, 4]);
@@ -1397,7 +1423,7 @@ describe('heatmapPlugin uniform grid', () => {
 					pixelQuery(u, .5, 97.5, null);
 					let reads = 0;
 					u.data[1][3] = new Proxy(f.data[1][3], { get(target, key) { if (/^\d+$/.test(String(key))) reads++; return target[key]; } });
-					u.valToPos = (v, key) => key == 'x' ? v / 1000 : 100 - v;
+					u.valToPos = (v, key) => key == 'x' ? v - 64 : 100 - v;
 					plugin.hooks.draw(u);
 					assert.equal(reads, 0, 'fully collapsed columns never enter their cell loop');
 					enter(u); leave(u); enter(u);
@@ -1436,7 +1462,8 @@ describe('heatmapPlugin uniform grid', () => {
 				plugin.hooks.setData(u);
 				assert.ok(reads < f.cells.length / 2, 'run search avoids a full X scan');
 				plugin.hooks.draw(u);
-				assert.deepEqual(drawn.flatMap(pathRects), lengths.map((height, col) => [col * 2, 300 - height, 1, height]));
+				assert.deepEqual(drawn.flatMap(pathRects), lengths.map((height, col) =>
+									projectedBox(u, f.xEdges[col * 2], f.xEdges[col * 2 + 1], 0, height).rect));
 				let start = 0;
 				for (let col = 0; col < lengths.length; col++) {
 					pixelQuery(u, col * 2 + .5, 299.5, start);
@@ -1577,14 +1604,20 @@ describe('heatmapPlugin uniform grid', () => {
 	});
 
 	for (const dpr of [1, 1.25, 2]) {
-		it(`resolves collapsed runs, shared edges, sparse fallback, and last-source precedence at DPR ${dpr}`, async () => {
+		it(`resolves subpixel cells, shared edges, sparse fallback, and last-source precedence at DPR ${dpr}`, async () => {
 			const f = fixture({ nx: 40, ny: 40, y: { distr: 1 }, ySize: 1,
 				include: (col, row) => col != 12 && row != 16 && (col * 3 + row) % 5 != 1 });
 			const u = await mount(f, dpr);
 			u.setSize({ width: 72, height: 52 });
 			await Promise.resolve();
 			const boxes = oracleRects(u, f);
-			assert.ok(boxes.length > 0 && boxes.length < f.cells.length);
+			assert.equal(boxes.length, f.cells.length);
+						assert.ok(boxes.every(({ rect: [, , w, h] }) => w < 1 && h < 1));
+			checkOracle(u, f);
+			u.setScale('x', { min: 4.25, max: 35.75 });
+			u.setScale('y', { min: 4.25, max: 35.75 });
+			await Promise.resolve();
+			assert.ok(oracleRects(u, f).length < boxes.length, 'offscreen runs collapse at the plot edges');
 			checkOracle(u, f);
 		});
 	}
@@ -1598,7 +1631,7 @@ describe('heatmapPlugin uniform grid', () => {
 			return target[key];
 		} });
 		const { u, plugin } = isolated({ xSize: 1, grid: f.grid }, data);
-		u.valToPos = (v, key) => key == 'x' ? v : 100 - v / 2;
+		u.valToPos = (v, key) => key == 'x' ? v : 100 - Math.floor(v / 2);
 		u.posToVal = (v, key) => key == 'x' ? v : (100 - v) * 2;
 		const isFinite = Number.isFinite;
 		try {
@@ -2090,7 +2123,7 @@ describe('heatmap cells demo integration', () => {
 						const id = u.data[1][1].findIndex((lo, i) => lo < y && y < u.data[1][2][i]);
 						assert.ok(id >= 0);
 						const drawable = bounds(u, id, true, 60)[3] > 0;
-						// Automatic linear ticks can collapse the tiny rows to a single pixel.
+						// The automatic linear range can project distinct source edges to the same coordinate.
 						if (mode != 'linear') assert.ok(drawable);
 						if (drawable) hover(u, 30, y, id);
 					}
@@ -2433,11 +2466,14 @@ describe('heatmap cells demo integration', () => {
 			assert.equal(root.querySelector('#color-min').textContent, '1');
 			assert.equal(root.querySelector('#color-max').textContent, '32');
 			assert.ok(root.querySelector('#status').textContent.startsWith(`${length.toLocaleString()} cells · 1000 one-minute intervals`));
-			const drawn = rects(u);
-			assert.ok(drawn.length > 0);
-			const [x, y, w, h] = drawn[0];
-			u.setCursor({ left: (x + w / 2 - u.bbox.left) / u.pxRatio, top: (y + h / 2 - u.bbox.top) / u.pxRatio });
-			assert.notEqual(u.cursor.dataIdx(u, 1), null, 'large charts are ready without entry');
+			assert.ok(rects(u).length > 0);
+			for (const id of [500 * 250, 500 * 250 + 1, 501 * 250]) {
+				const [x, y, w, h] = bounds(u, id, true, 60);
+				assert.ok(w > 0 && w < 1 && h > 0, 'neighboring time columns have subpixel widths');
+				pixelQuery(u, x + w / 2, y + h / 2, id);
+				const box = u.cursor.points.bbox(u, 1);
+				assert.deepEqual([box.left, box.top, box.width, box.height], bounds(u, id, false, 60));
+			}
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});

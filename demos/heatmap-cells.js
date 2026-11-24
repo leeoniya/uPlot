@@ -1,6 +1,8 @@
 import uPlot from '../src/uPlot.js';
 import { rangeY } from '../src/rangeY.js';
+import { closestIdx } from '../src/utils.js';
 import { snapshot1, snapshot2 } from './data/heatmap-snapshots.js';
+import { heatmapCells, heatmapRows } from './lib/heatmapFrameAdapters.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
 import { logApproxLut } from './lib/heatmapColorLut.js';
 
@@ -19,20 +21,42 @@ function formatSeconds(seconds) {
 	return `${Number((seconds * scale).toPrecision(3))} ${unit}`;
 }
 
-export function createDemo(root, frames) {
-	const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
-	const field = name => frame.schema.fields.findIndex(f => f.name == name);
-	const synthetic = {
-		interval: frame.schema.fields[field('xMax')].config.interval,
-		values: ['xMax', 'yMin', 'yMax', 'count'].map(name => frame.data.values[field(name)]),
+// Resolve by split position, not its visible index: zoom may hide the first labels.
+function labeledAxis(axis) {
+	if (!axis) return;
+	const { splits, values, align } = axis;
+	const label = v => values[closestIdx(v, splits)];
+	return {
+		opts: {
+			splits: (u, idx, min, max) => splits.filter(v => v >= min && v <= max),
+			values: (u, visible) => visible.map(v => v == null ? null : label(v)),
+		},
+		cell: (lo, hi) => align === 0 ? label((lo + hi) / 2) :
+			align < 0 ? `(${label(lo)}, ${label(hi)}]` : `[${label(lo)}, ${label(hi)})`,
 	};
-	const datasets = { synthetic, snapshot1, snapshot2 };
+}
+
+export function createDemo(root, frames) {
+	const frame = type => frames.find(f => f.schema.meta?.type == type);
+	const classic = frame('heatmap-rows');
+	const datasets = {
+		synthetic: heatmapCells(frame('heatmap-cells')),
+		snapshot1: heatmapCells(snapshot1),
+		snapshot2: heatmapCells(snapshot2),
+		categorical: heatmapRows({
+			schema: { fields: [{ name: 'Method', type: 'string' }, { name: '2xx' }, { name: '4xx' }, { name: '5xx' }] },
+			data: { values: [['GET', 'POST', 'DELETE'], [25, 18, 6], [4, 3, 0], [1, 0, 2]] },
+		}),
+	};
+	root.querySelector('option[value="classic"]').disabled = !classic;
 	const select = root.querySelector('#dataset');
 	select.value = 'synthetic';
-	let view = createView(root, synthetic);
+	let view = createView(root, datasets.synthetic);
 	function setDataset() {
+		const name = select.value;
+		if (name === 'classic') datasets.classic ??= heatmapRows(classic);
 		view.destroy();
-		view = createView(root, datasets[select.value], select.value != 'synthetic');
+		view = createView(root, datasets[name], name === 'snapshot1' || name === 'snapshot2');
 	}
 	select.disabled = false;
 	select.addEventListener('change', setDataset);
@@ -47,15 +71,17 @@ export function createDemo(root, frames) {
 }
 
 function createView(root, dataset, isSnapshot = false) {
-	const xSize = dataset.interval / 1000;
+	const { xSize, data: sourceData, axes, scales } = dataset;
+	const labeledX = labeledAxis(axes?.[0]);
+	const labeledY = labeledAxis(axes?.[1]);
 	const intervalLabel = xSize == 60 ? 'one-minute' : xSize % 60 == 0 ? `${xSize / 60}-minute` : `${xSize}-second`;
-	const [times, yMin, yMax, counts] = dataset.values;
-	const xs = times.map(t => t / 1000);
+	const [xs, yMin, yMax, counts] = sourceData[1];
 	let minCount = Infinity, maxCount = -Infinity;
 	for (let i = 0; i < counts.length; i++) {
 		minCount = Math.min(minCount, counts[i]);
 		maxCount = Math.max(maxCount, counts[i]);
 	}
+	if (!counts.length) minCount = maxCount = 0;
 	const countRange = maxCount - minCount || 1;
 	const logRange = Math.log(maxCount) - Math.log(minCount);
 	const colorCountInput = root.querySelector('#color-count');
@@ -134,7 +160,6 @@ function createView(root, dataset, isSnapshot = false) {
 	updatePalette();
 	const xRange = [0, xSize];
 
-	const sourceData = [null, [xs, yMin, yMax, counts]];
 	let data = sourceData;
 	let signedData;
 
@@ -198,7 +223,9 @@ function createView(root, dataset, isSnapshot = false) {
 	updateColorScale();
 	const signed = root.querySelector('#signed-data');
 	const logOptions = yScale.querySelectorAll('option[value^="log"]');
-	if (isSnapshot) signed.checked = false;
+	if (isSnapshot || labeledY) signed.checked = false;
+	const previousScale = yScale.value;
+	if (labeledY) yScale.value = 'linear';
 	if (signed.checked) data = mirroredData();
 	heightValue.data = `${height.value}px`;
 
@@ -216,17 +243,14 @@ function createView(root, dataset, isSnapshot = false) {
 		let zeroEdge = 0, autoBounds;
 
 		function snapshotRange(u) {
-			const { top, height } = u.bbox;
+			const { height } = u.bbox;
 			let [min, max] = yRange;
 			if (mode == 'linear') {
 				const ticks = rangeY(min, max, height / u.pxRatio || plotHeight);
 				if (ticks != null) ({ min, max } = ticks);
 			}
 			if (zeroEdge != 0 && height > 0) {
-				// The renderer rounds the center to a canvas pixel; use the nearest center that fits.
-				const half = zeroHeight / 2 * Math.round(u.height * u.pxRatio) / u.height;
-				const bottom = top + height;
-				const pad = zeroEdge < 0 ? bottom - Math.floor(bottom - half) : Math.ceil(top + half) - top;
+				const pad = zeroHeight / 2 * Math.round(u.height * u.pxRatio) / u.height;
 				if (pad < height) {
 					const far = zeroEdge < 0 ? max : min;
 					const ratio = -pad / (height - pad);
@@ -247,8 +271,8 @@ function createView(root, dataset, isSnapshot = false) {
 			cursor: { drag: { x: true, y: true } },
 			scales: {
 				// Preparation supplies bounds and the adaptive threshold without core data scans.
-				x: { scan: false, range: () => xRange },
-				y: {
+				x: scales?.x ?? { scan: false, range: () => xRange },
+				y: scales?.y ?? {
 					distr: isLog ? 3 : mode == 'asinh' ? 4 : 1,
 					log: logBase,
 					asinh: () => asinhThreshold,
@@ -258,13 +282,16 @@ function createView(root, dataset, isSnapshot = false) {
 				},
 			},
 			axes: [
-				{ stroke: '#b7bdc5', grid: axisLines, ticks: axisLines },
+				// Canvas-only axes keep their DOM hit targets from intercepting edge-cell hover in Chrome.
+				{ dom: false, stroke: '#b7bdc5', grid: axisLines, ticks: axisLines, ...labeledX?.opts },
 				{
+					dom: false,
 					stroke: '#b7bdc5',
 					grid: { ...axisLines, filter: filterAxisSplits },
 					ticks: { ...axisLines, filter: filterAxisSplits },
 					size: 85,
 					values: (u, splits) => splits.map(v => v == null ? null : formatY(v)),
+					...labeledY?.opts,
 				},
 			],
 			hooks: isSnapshot ? { setSize: [u => {
@@ -280,8 +307,9 @@ function createView(root, dataset, isSnapshot = false) {
 				xSize,
 
 				cellGap: () => gap,
+
 				zeroHeight,
-				grid: isSnapshot || signed.checked ? { y: { distr: 3, factor } } : undefined,
+				grid: dataset.grid ?? (isSnapshot || signed.checked ? { y: { distr: 3, factor } } : undefined),
 				colors: palette,
 				colorIdx: count => colorIdx(count),
 				onPrepare(u, minY, maxY, threshold, zeroMin, zeroMax) {
@@ -289,6 +317,11 @@ function createView(root, dataset, isSnapshot = false) {
 					asinhThreshold = threshold;
 					hoverIdx = undefined;
 					const xs = data[1][0];
+					if (scales) {
+						const [min, max] = scales.x.range;
+						status.textContent = `${xs.length.toLocaleString()} cells · ${(max - min) / xSize} columns · ${scales.y.range[1]} ordinal rows`;
+						return;
+					}
 					if (xs.length > 0) {
 						xRange[0] = xs[0] - xSize;
 						xRange[1] = xs.at(-1);
@@ -311,8 +344,11 @@ function createView(root, dataset, isSnapshot = false) {
 						return;
 					hoverIdx = i;
 					const [xs, yMin, yMax, counts] = u.data[1];
-					const timeRange = i == null ? '' : u.axes[0].values(u, [xs[i] - xSize, xs[i]], 0, 0, xSize).join('–').replace(/\n/g, ' ');
-					readoutText.data = i == null ? hint : `${timeRange} UTC · Y: ${formatY(yMin[i])}–${formatY(yMax[i])} · Count: ${format(counts[i])}`;
+					if (i == null) { readoutText.data = hint; return; }
+					const x = labeledX ? labeledX.cell(xs[i] - xSize, xs[i]) :
+						u.axes[0].values(u, [xs[i] - xSize, xs[i]], 0, 0, xSize).join('–').replace(/\n/g, ' ') + ' UTC';
+					const y = labeledY ? labeledY.cell(yMin[i], yMax[i]) : `${formatY(yMin[i])}–${formatY(yMax[i])}`;
+					readoutText.data = `${x} · Y: ${y} · Count: ${format(counts[i])}`;
 				},
 			})],
 		}, data, host);
@@ -361,11 +397,13 @@ function createView(root, dataset, isSnapshot = false) {
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
 	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = false;
-	signed.disabled = isSnapshot;
+	signed.disabled = isSnapshot || !!labeledY;
+	yScale.disabled = !!labeledY;
 
 	return {
 		get plot() { return plot; },
 		destroy() {
+			if (labeledY) yScale.value = previousScale;
 			height.removeEventListener('input', setHeight);
 			cellGap.removeEventListener('input', setGap);
 

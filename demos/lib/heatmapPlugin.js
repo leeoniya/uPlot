@@ -11,8 +11,9 @@
 // xSize is the bucket width in transformed X units. Implicit Y width comes from the first cell.
 // cellGap is a CSS-pixel number or (u) => number, read once per draw; it defaults to 0.
 // Omit gaps globally if they remove over 10% of the area formed by the smallest visible grid width/height.
-// Ignore collapsed and partially clipped intervals; omit gaps if either minimum is unavailable.
-// Half the effective gap is inset from each rounded, clipped cell edge.
+// Measure intersecting buckets before clipping; a sliver at the viewport edge must not set the minimum.
+// Drawing and hover share fractional canvas coordinates for both axes.
+// Half the effective gap is inset from each clipped cell edge.
 // Gaps affect drawing, not hit testing. Cells too small for the gap stay hoverable with full-cell outlines.
 // An effective positive gap disables adjacent-row merging. Fractional gaps are not rounded to device pixels.
 // colorIdx returns a palette index. onHover receives the original source index or null.
@@ -199,17 +200,15 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 	function project(u, axis, key, offset, size) {
 		const { values, pixels } = axis;
 		const end = offset + size;
+
 		let previous, minSize = Infinity;
 		for (let i = 0; i < values.length; i++) {
-			const pixel = Math.round(u.valToPos(values[i], key, true));
+			const pixel = u.valToPos(values[i], key, true);
 			pixels[i] = Math.max(offset, Math.min(end, pixel));
 			// The zero row gets its final height below; its two spacer rows have no cells.
-			if (cellGap > 0 && i > 0 && pixel >= offset && pixel <= end && previous >= offset && previous <= end &&
-				(axis != y || zeroRow < 0 || i < zeroRow || i > zeroRow + 2)) {
-				const span = Math.abs(pixel - previous);
-				if (span > 0)
-					minSize = Math.min(minSize, span);
-			}
+			if (cellGap > 0 && i > 0 && pixels[i] != pixels[i - 1] &&
+				(axis != y || zeroRow < 0 || i < zeroRow || i > zeroRow + 2))
+				minSize = Math.min(minSize, Math.abs(pixel - previous));
 			previous = pixel;
 		}
 		pixels.length = values.length;
@@ -224,13 +223,13 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 		if (height <= actual || u.scales.y.min > 0 || u.scales.y.max < 0) return;
 		const lo = p[row + 2] ?? u.bbox.top;
 		const hi = p[row - 1] ?? (u.bbox.top + u.bbox.height);
-		const center = Math.round(u.valToPos(0, 'y', true));
+		const center = u.valToPos(0, 'y', true);
 		p[row + 1] = Math.max(lo, Math.min(top, center - height / 2));
 		p[row] = Math.min(hi, Math.max(bottom, center + height / 2));
 
 	}
 
-	// Search rounded drawing bounds directly, including collapsed edges. Y pixels descend as values increase.
+	// Search drawing bounds directly, including collapsed edges. Y pixels descend as values increase.
 	function bucketAt(axis, pixel, inclusive) {
 		return bisect(axis.pixels, pixel, 0, axis.count, axis == y, inclusive) - 1;
 	}

@@ -29,6 +29,8 @@
 					<option value="synthetic" selected>Synthetic</option>
 					<option value="snapshot1">Snapshot 1 · zero and positive buckets</option>
 					<option value="snapshot2">Snapshot 2 · negative, zero and positive buckets</option>
+					<option value="classic">Prometheus classic · le buckets</option>
+					<option value="categorical">Categorical · method × status</option>
 				</select>
 				<button id="set-data" type="button" disabled>setData() — same data</button>
 			</div>
@@ -74,7 +76,10 @@
 			import { generateHeatmapCells } from './lib/heatmapCellsData.js';
 
 			try {
-				createDemo(document.querySelector('#demo'), generateHeatmapCells({ xGapProbability: 0.02 }));
+				const response = await fetch('./data/heatmap-classic.json');
+				if (!response.ok) throw new Error(`Classic frame: HTTP ${response.status}`);
+				const frames = generateHeatmapCells({ xGapProbability: 0.02 });
+				createDemo(document.querySelector('#demo'), frames.concat(await response.json()));
 			}
 			catch (error) {
 				document.querySelector('#status').textContent = `Cannot load heatmap: ${error.message}. Serve the repository root over HTTP.`;
