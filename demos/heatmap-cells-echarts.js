@@ -1,3 +1,5 @@
+import { readCells, gridShape, checkGridIndex } from './heatmap-cells-compare.js';
+
 // Spectral, cool to warm; matches the uPlot demo's default 24-color palette.
 const stops = ['5e4fa2', '3288bd', '66c2a5', 'abdda4', 'e6f598', 'ffffbf', 'fee08b', 'fdae61', 'f46d43', 'd53e4f', '9e0142'];
 const rgb = stops.map(hex => [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)));
@@ -9,49 +11,26 @@ const palette = Array.from({ length: colorCount }, (_, i) => {
 });
 
 export function prepareData(frames) {
-	const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
-	if (frame == null)
-		throw new Error('No heatmap-cells frame found');
-	const field = name => frame.schema.fields.findIndex(f => f.name == name);
-	const values = name => frame.data.values[field(name)];
-	const times = values('xMax'), yMin = values('yMin'), yMax = values('yMax'), counts = values('count');
-	const xSize = frame.schema.fields[field('xMax')]?.config?.interval;
-	if (!(Number.isFinite(xSize) && xSize > 0) || !times?.length || [yMin, yMax, counts].some(a => a?.length != times.length))
-		throw new Error('Expected nonempty xMax, yMin, yMax, and count arrays and a positive time interval');
-
-	let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-	let minCount = Infinity, maxCount = -Infinity;
-	for (let i = 0; i < times.length; i++) {
-		if (!Number.isFinite(times[i]) || !Number.isFinite(yMin[i]) || !Number.isFinite(yMax[i]) ||
-			!(yMin[i] > 0 && yMax[i] > yMin[i]) || !(Number.isFinite(counts[i]) && counts[i] > 0))
-			throw new Error(`Cell ${i} must have a finite time, positive bucket bounds, and a positive count`);
-		minX = Math.min(minX, times[i]);
-		maxX = Math.max(maxX, times[i]);
-		minY = Math.min(minY, yMin[i]);
-		maxY = Math.max(maxY, yMax[i]);
-		minCount = Math.min(minCount, counts[i]);
-		maxCount = Math.max(maxCount, counts[i]);
-	}
-
-	const factor = yMax[0] / yMin[0];
-	const logStep = Math.log(factor);
+	const cells = readCells(frames);
+	const { times, yMin, yMax, counts, xSize, minTime, minY, minCount, maxCount } = cells;
+	const { nx, ny, factor, logStep } = gridShape(cells);
+	if (Math.max(nx, ny) > 0xffffffff)
+		throw new RangeError('Heatmap category array is too large');
 	// Flat x/y/count triples avoid per-cell arrays and ECharts' ordinary-array option clones.
 	const data = new Float64Array(times.length * 3);
 	for (let i = 0; i < times.length; i++) {
-		const x = (times[i] - minX) / xSize;
-		const y = Math.log(yMin[i] / minY) / logStep;
-		const span = Math.log(yMax[i] / yMin[i]) / logStep;
-		if (Math.abs(x - Math.round(x)) > 1e-8 || Math.abs(y - Math.round(y)) > 1e-8 || Math.abs(span - 1) > 1e-8)
-			throw new Error(`Cell ${i} does not fit the uniform time and exponential bucket grid`);
+		const x = Math.round((times[i] - minTime) / xSize);
+		const y = Math.round(Math.log(yMin[i] / minY) / logStep);
+		checkGridIndex(x, y, nx, ny);
 		const offset = i * 3;
-		data[offset] = Math.round(x);
-		data[offset + 1] = Math.round(y);
+		data[offset] = x;
+		data[offset + 1] = y;
 		data[offset + 2] = counts[i];
 	}
 
 	// Populate axis categories, not missing cells: gaps must retain their grid positions.
-	const xCategories = Array.from({ length: Math.round((maxX - minX) / xSize) + 1 }, (_, i) => String(minX + i * xSize));
-	const yCategories = Array.from({ length: Math.round(Math.log(maxY / minY) / logStep) }, (_, i) => String(minY * factor ** (i + .5)));
+	const xCategories = Array.from({ length: nx }, (_, i) => String(minTime + i * xSize));
+	const yCategories = Array.from({ length: ny }, (_, i) => String(minY * factor ** (i + .5)));
 	return { data, times, yMin, yMax, counts, xSize, xCategories, yCategories, minCount, maxCount };
 }
 

@@ -40,7 +40,7 @@ function fixtures(frames) {
 			assert(Number.isFinite(counts[i]) && counts[i] > 0, `${name}: invalid count ${i}`);
 		}
 		const scale = 3844 / (maxCount - minCount || 1);
-		return { name, data: [null, cells], minY, maxY, step, colorIdx: count => lut[Math.floor((count - minCount) * scale)] };
+		return { name, data: [null, cells], minY, maxY, step, colorDomain: [minCount, maxCount], baselineColorIdx: count => lut[Math.floor((count - minCount) * scale)] };
 	});
 }
 
@@ -68,7 +68,9 @@ function setup(factory, fixture, display, dpr, ctx, clipped = false) {
 	const ranges = { x: crop(fullX), y: crop(fullY.map(fwd)) };
 	const listeners = {}, opts = { series: [{}, { show: true }], cursor: {} };
 	let hover = null;
-	const plugin = factory({ xSize: 60, grid: { x: { distr: 1 }, y: { distr: 3 } }, colors, colorIdx: fixture.colorIdx, onHover: (u, id) => { hover = id; } });
+	// The Flatbush snapshot predates built-in color scales; its original lookup also drives the oracle.
+	const colorOptions = factory === heatmapPlugin ? { colorScale: 'sqrt', colorDomain: fixture.colorDomain } : { colorIdx: fixture.baselineColorIdx };
+	const plugin = factory({ xSize: 60, grid: { x: { distr: 1 }, y: { distr: 3 } }, colors, ...colorOptions, onHover: (u, id) => { hover = id; } });
 	const u = { data: fixture.data, series: opts.series, ctx, pxRatio: dpr, cursor: { left: -10, top: -10 },
 		over: { addEventListener: (n, fn) => { listeners[n] = fn; }, removeEventListener: n => { delete listeners[n]; } },
 		valToPos(value, key, canvas = false) {
@@ -103,7 +105,7 @@ function oracle(fixture, u) {
 		const x0 = project(xs[id] - 60, 'x', b.left, b.width), x1 = project(xs[id], 'x', b.left, b.width);
 		const y0 = project(hi[id], 'y', b.top, b.height), y1 = project(lo[id], 'y', b.top, b.height);
 		if (x1 > x0 && y1 > y0) {
-			const color = fixture.colorIdx(counts[id]);
+			const color = fixture.baselineColorIdx(counts[id]);
 			raw[color].push(x0, y0, x1 - x0, y1 - y0); ids[color].push(id); bounds.push([id, x0, y0, x1, y1]);
 		}
 	}
@@ -163,7 +165,7 @@ export function runBenchmark(baselineFactory, frames, metadata = {}) {
 	const browser = typeof document != 'undefined', saved = globalThis.Path2D, start = performance.now();
 	const report = { metadata, environment: { runtime: browser ? navigator.userAgent : process.version, renderer: browser ? 'real Canvas/Path2D submissions, not presentation' : 'checksum Path2D stub; no rendering' },
 		protocol: { warmup: 3, samples: 9, alternatingOrder: true, timedDpr: 1, validationDpr: [1, 2], xSize: 60, grid: { x: { distr: 1 }, y: { distr: 3 } }, syntheticSeed: '0x51f15e', synthetic: '1000 columns; one row per group of four of 1000 Y buckets; 2**(1/32) edges',
-			notes: 'Steady-state setData alone; redraw outside excludes old finish; redraw inside includes old finish. Resize changes mock bbox height and draws inside, not uPlot layout. No validation or readback timed. Canvas is not cleared between draws. Single hook call per sample; GC included. Palette/LUT shared.' }, cases: [] };
+			notes: 'Steady-state setData alone; redraw outside excludes old finish; redraw inside includes old finish. Resize changes mock bbox height and draws inside, not uPlot layout. No validation or readback timed. Canvas is not cleared between draws. Single hook call per sample; GC included. Both use the same 32 colors and sqrt mapping over the full fixture count domain.' }, cases: [] };
 	const factories = [baselineFactory, heatmapPlugin];
 	try {
 		for (const fixture of fixtures(frames)) for (const display of ['log', 'linear', 'asinh']) {
@@ -211,6 +213,8 @@ export async function loadInputs() {
 	const baselineSource = git(['show', `${baselineRef}:demos/lib/heatmapPlugin.js`]);
 	assert(baselineSource.includes("import Flatbush from './flatbush.js'"), 'Baseline must contain the original Flatbush plugin');
 	const currentSource = readFileSync(new URL('../demos/lib/heatmapPlugin.js', import.meta.url), 'utf8');
+	const colorLutSource = readFileSync(new URL('../demos/lib/heatmapColorLut.js', import.meta.url), 'utf8');
+	const frameSource = readFileSync(new URL('../demos/lib/heatmapFrame.js', import.meta.url), 'utf8');
 	const flatbushSource = readFileSync(new URL('../demos/lib/flatbush.js', import.meta.url), 'utf8');
 	// Generate in Node so the browser runner can keep serving the same serialized fixture.
 	const { generateHeatmapCells } = await import('../demos/lib/heatmapCellsData.js');
@@ -219,7 +223,7 @@ export async function loadInputs() {
 	const generatorOptions = { seed: 1, columns: 160, interval: 60000 };
 	const fixtureSource = JSON.stringify(generateHeatmapCells(generatorOptions));
 	const sha256 = text => createHash('sha256').update(text).digest('hex');
-	return { baselineSource, currentSource, flatbushSource, fixtureSource, metadata: { head: git(['rev-parse', 'HEAD']).trim(), baselineRef, baselineSha256: sha256(baselineSource), currentSha256: sha256(currentSource), flatbushSha256: sha256(flatbushSource),
+	return { baselineSource, currentSource, colorLutSource, frameSource, flatbushSource, fixtureSource, metadata: { head: git(['rev-parse', 'HEAD']).trim(), baselineRef, baselineSha256: sha256(baselineSource), currentSha256: sha256(currentSource), colorLutSha256: sha256(colorLutSource), frameSha256: sha256(frameSource), flatbushSha256: sha256(flatbushSource),
 		fixtureGenerator: { path: generatorPath, options: generatorOptions, sourceSha256: sha256(generatorSource) }, fixtureSha256: sha256(fixtureSource) } };
 }
 export function printReport(report) {

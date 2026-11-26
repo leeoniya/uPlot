@@ -84,6 +84,16 @@ function edgeFixture(yEdges, gridY, include = (col, row) => col != 2 && (col + r
 	return { data, cells, xEdges, yEdges, xSize: 1, grid: { x: { distr: 1 }, y: gridY } };
 }
 
+function withCountReads(data, onRead) {
+	const facets = data[1].slice();
+	facets[3] = new Proxy(facets[3], { get(target, key) {
+		const value = target[key];
+		if (/^\d+$/.test(String(key))) onRead(value, Number(key));
+		return value;
+	} });
+	return [null, facets];
+}
+
 function sourceFixture(data, xSize) {
 	const [xs, lo, hi] = data[1];
 	const xEdges = [...new Set(xs.flatMap(v => [v - xSize, v]))].sort((a, b) => a - b);
@@ -240,28 +250,30 @@ const colorLabels = { linear: 'Count · linear scale', sqrt: 'Count · √ scale
 const colorModes = Object.keys(colorLabels);
 
 // Independent reference: retain only the snapped transitions, not a lookup table.
-function approximateLogTransitions(min, max) {
-	const n = 23, logRange = Math.log(max) - Math.log(min), step = logRange / n;
+function approximateLogTransitions(min, max, n = 23) {
+	const logRange = Math.log(max) - Math.log(min), step = logRange / n;
 	const base = 4 * n * n, range = Math.expm1(logRange);
 	const minGap = Math.exp(step / 2) * Math.expm1(step) / range;
 	const intervals = base * Math.max(1, Math.ceil(1 / minGap / base)) * 4;
-	assert.ok(intervals <= 2 ** 24);
+	if (intervals > 2 ** 24) return null;
 	const transitions = Array.from({ length: n }, (_, i) => Math.ceil(Math.expm1(step * (i + .5)) / range * intervals));
 	return { intervals, transitions };
 }
 
-function demoColorIndex(count, mode, min, max) {
+function demoColorIndex(count, mode, min, max, last) {
 	if (min == max) return 0;
 	if (mode == 'log') {
-		const { intervals, transitions } = approximateLogTransitions(min, max);
+		const exact = Math.round(last * (Math.log(count) - Math.log(min)) / (Math.log(max) - Math.log(min)));
+		const grid = approximateLogTransitions(min, max, last);
+		if (grid == null) return exact;
+		const { intervals, transitions } = grid;
 		const j = Math.floor((count - min) * (intervals / (max - min)));
 		const color = transitions.filter(edge => edge <= j).length;
-		const exact = Math.round(23 * (Math.log(count) - Math.log(min)) / (Math.log(max) - Math.log(min)));
 		assert.ok(Math.abs(color - exact) <= 1, `count ${count}: approximate ${color}, exact ${exact}`);
 		return color;
 	}
 	const t = (count - min) / (max - min);
-	return Math.round(23 * (mode == 'sqrt' ? Math.sqrt(t) : mode == 'cbrt' ? Math.cbrt(t) : t));
+	return Math.round(last * (mode == 'sqrt' ? Math.sqrt(t) : mode == 'cbrt' ? Math.cbrt(t) : t));
 }
 
 function colorBoundaryCounts(mode, min, max) {
@@ -281,15 +293,15 @@ function colorBoundaryCounts(mode, min, max) {
 	return counts;
 }
 
-function checkDemoColors(u, mode, min, max) {
-	const expected = Array.from({ length: 24 }, () => []);
+function checkDemoColors(u, mode, min, max, size = 24) {
+	const expected = Array.from({ length: size }, () => []);
 	u.data[1][3].forEach((count, i) => {
 		const box = sourceBox(u, i, 60);
 		if (box.rect[2] > 0 && box.rect[3] > 0)
-			expected[demoColorIndex(count, mode, min, max)].push(box);
+			expected[demoColorIndex(count, mode, min, max, size - 1)].push(box);
 	});
-	const paths = fills(u).slice(-24);
-	assert.equal(paths.length, 24);
+	const paths = fills(u).slice(-size);
+	assert.equal(paths.length, size);
 	paths.forEach((path, color) => checkCoverage(pathRects(path), expected[color], `${mode} palette index ${color}`));
 }
 
@@ -298,7 +310,7 @@ function withoutColorMath(fn) {
 	const originals = names.map(name => Math[name]);
 	try {
 		for (const name of names)
-			Math[name] = () => { throw new Error(`Color selection/drawing must reuse setup tables, not compute Math.${name}`); };
+			Math[name] = () => { throw new Error(`Repeated drawing must reuse the selected table, not compute Math.${name}`); };
 		return fn();
 	}
 	finally { names.forEach((name, i) => { Math[name] = originals[i]; }); }
@@ -767,8 +779,9 @@ describe('heatmapPlugin uniform grid', () => {
 					col != 2 && (mode != 'missing rows' || row % 3 != 1) &&
 					(mode != 'asymmetric gap' || row < center - 2 || row > center));
 				const prepared = [], selected = [];
-				const u = await mount(f, 1.25, { onPrepare: recordPrepare(prepared),
-					colorIdx: count => { selected.push(count); return 0; } },
+				const data = withCountReads(f.data, count => selected.push(count));
+				const u = await mount({ ...f, data }, 1.25, { onPrepare: recordPrepare(prepared),
+					colors: ['red', 'blue'], colorDomain: [1, f.cells.length] },
 					{ y: { distr, asinh: .25, min: Math.min(-1, edges[0]), max: Math.max(1, edges.at(-1)) } });
 				const lower = Math.min(...f.data[1][1]), upper = Math.max(...f.data[1][2]);
 				const nearest = Math.min(...[...f.data[1][1], ...f.data[1][2]].map(Math.abs));
@@ -867,8 +880,9 @@ describe('heatmapPlugin uniform grid', () => {
 					const sourceEdges = [...f.data[1][1], ...f.data[1][2]];
 					const eligible = sourceEdges.map(Math.abs).filter(v => v > 0);
 					const expected = [Math.min(...f.data[1][1]), Math.max(...f.data[1][2]), eligible.length ? Math.min(...eligible) : 1];
-					const u = await mount(f, dpr, { onPrepare: recordPrepare(prepared),
-						colorIdx: count => { selected.push(count); return 0; } },
+					const data = withCountReads(f.data, count => selected.push(count));
+					const u = await mount({ ...f, data }, dpr, { onPrepare: recordPrepare(prepared),
+						colors: ['red', 'blue'], colorDomain: [1, f.cells.length] },
 						{ y: { distr, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
 					assert.deepEqual(prepared, [[u, ...expected]], 'metadata uses source extrema');
 					assert.deepEqual(selected, oracleRects(u, f).map(b => f.data[1][3][b.id]));
@@ -882,7 +896,7 @@ describe('heatmapPlugin uniform grid', () => {
 						assert.deepEqual(selected, oracleRects(u, f).map(b => f.data[1][3][b.id]), 'only visible cells select colors');
 					}
 					assert.equal(prepared.length, 1, 'resize and hover reuse preparation');
-					assert.deepEqual(f.data, snapshot, 'source cells and counts remain intact');
+					assert.deepEqual(data, snapshot, 'source cells and counts remain intact');
 				});
 			}
 		}
@@ -917,7 +931,7 @@ describe('heatmapPlugin uniform grid', () => {
 	async function mountZeroBucket(rows, zeroHeight, cellGap = 0) {
 		const data = zeroBucketData(rows), hovered = [];
 		const f = { ...sourceFixture(data, 1), xSize: 1, grid: { x: { distr: 1 }, y: { distr: 3, factor: 2 } } };
-		const u = await mount(f, 1, { zeroHeight, cellGap, colors: ['blue', 'red'], colorIdx: count => count - 1,
+		const u = await mount(f, 1, { zeroHeight, cellGap, colors: ['blue', 'red'], colorDomain: [1, 2],
 			onHover: (u, id) => hovered.push(id) }, { y: { distr: 1, min: -4, max: 4 } });
 		enter(u);
 		return { u, hovered };
@@ -1223,14 +1237,154 @@ describe('heatmapPlugin uniform grid', () => {
 		checkOracle(u, f);
 	});
 
+	describe('palette color scale', () => {
+		const colors = ['navy', 'gold', 'red'];
+		const countsFixture = counts => fixture({ nx: counts.length, ny: 1, y: { distr: 1 }, ySize: 1,
+			include: () => true, count: col => counts[col] });
+
+		function checkDraw(u, f, palette, indices) {
+			const boxes = oracleRects(u, f);
+			const styles = lastDraw(u).filter(e => e[0] == 'fillStyle').flatMap(e => e.slice(1));
+			assert.deepEqual(styles, palette);
+			const paths = fills(u);
+			assert.equal(paths.length, palette.length);
+			paths.forEach((path, i) => checkCoverage(pathRects(path), boxes.filter(box => indices[box.id] == i), palette[i]));
+		}
+
+		it('uses the observed linear domain and publishes setData changes before draw', async () => {
+			const f = countsFixture([12, 10, 20, 14]);
+			const events = [];
+			const u = await mount(f, 1, { colors, onColorScale: info => events.push(info) });
+			assert.equal(events.length, 1);
+			const { min, max, stops, scale } = events[0];
+			assert.deepEqual({ min, max, stops, scale }, { min: 10, max: 20, scale: 'linear', stops: [[0, 'navy'], [.5, 'gold'], [1, 'red']] });
+			checkDraw(u, f, colors, [0, 0, 2, 1]);
+
+			const next = countsFixture([30, 24, 22, 20]);
+			u.setData(next.data);
+			assert.equal(events.length, 2);
+			assert.deepEqual([events[1].min, events[1].max], [20, 30]);
+			await Promise.resolve();
+			checkDraw(u, next, colors, [2, 1, 0, 0]);
+
+			next.data[1][3][0] = 40;
+			u.setData(next.data);
+			assert.equal(events.length, 3);
+			assert.deepEqual([events[2].min, events[2].max], [20, 40]);
+			await Promise.resolve();
+			checkDraw(u, next, colors, [2, 0, 0, 0]);
+
+			next.data[1][3][1] = 36;
+			u.setData(next.data);
+			await Promise.resolve();
+			checkDraw(u, next, colors, [2, 2, 0, 0]);
+			assert.equal(events.length, 3, 'interior counts can change color without a new domain');
+
+			u.setData(empty());
+			assert.equal(events.length, 4);
+			assert.deepEqual([events[3].min, events[3].max], [0, 0]);
+			await Promise.resolve();
+			assert.deepEqual(rects(u), []);
+			u.setData(empty());
+			await Promise.resolve();
+			assert.equal(events.length, 4);
+		});
+
+		for (const [domain, min, max, indices, emptyDomain] of [
+			[[0, null], 0, 100, [0, 1, 1, 2], [0, 0]],
+			[[4, null], 4, 100, [0, 1, 1, 2], [4, 4]],
+			[[null, 64], 1, 64, [0, 1, 2, 2], [64, 64]],
+			[[4, 64], 4, 64, [0, 1, 2, 2], [4, 64]],
+		]) {
+			it(`resolves sqrt domain ${JSON.stringify(domain)} and clamps palette indices`, async () => {
+				const f = countsFixture([1, 16, 49, 100]), events = [];
+				const u = await mount(f, 1, { colors, colorScale: 'sqrt', colorDomain: domain, onColorScale: info => events.push(info) });
+				assert.equal(events.length, 1);
+				const info = events[0];
+				assert.deepEqual([info.min, info.max, info.scale, info.stops], [min, max, 'sqrt', [[0, 'navy'], [.25, 'gold'], [1, 'red']]]);
+				checkDraw(u, f, colors, indices);
+				u.setData(empty());
+				assert.equal(events.length, domain.includes(null) ? 2 : 1);
+				assert.deepEqual([events.at(-1).min, events.at(-1).max], emptyDomain);
+			});
+		}
+
+		it('resolves colors and colorScale getters on redraw without rescanning on redraw or zoom', async () => {
+			const f = countsFixture([1, 4, 13, 41, 65]), events = [], getterPlots = new Set();
+			let palette = ['black'], scale = 'linear';
+			const u = await mount(f, 1, {
+				colors: u => { getterPlots.add(u); return palette; },
+				colorScale: u => { getterPlots.add(u); return scale; },
+				onColorScale: info => events.push(info),
+			});
+			checkDraw(u, f, palette, [0, 0, 0, 0, 0]);
+			assert.equal(events.length, 1);
+
+			// The first and last columns define the domain but neither is visible after zoom.
+			for (const i of [0, 4])
+				Object.defineProperty(f.data[1][3], i, { get() { assert.fail(`offscreen count ${i} read after setData`); } });
+			u.setScale('x', { min: 1, max: 4 });
+			await Promise.resolve();
+			assert.equal(events.length, 1);
+			checkDraw(u, f, palette, [0, 0, 0, 0, 0]);
+
+			palette = colors;
+			for (const [mode, middleStop, indices] of [
+				['linear', .5, [0, 0, 0, 1, 2]],
+				['sqrt', .25, [0, 0, 1, 2, 2]],
+				['cbrt', .125, [0, 1, 1, 2, 2]],
+			]) {
+				scale = mode;
+				const before = events.length;
+				u.redraw(); await Promise.resolve();
+				assert.equal(events.length, before + 1);
+				const info = events.at(-1);
+				assert.deepEqual([info.min, info.max, info.scale, info.stops], [1, 65, mode, [[0, 'navy'], [middleStop, 'gold'], [1, 'red']]]);
+				checkDraw(u, f, palette, indices);
+				u.redraw(); await Promise.resolve();
+				assert.equal(events.length, before + 1, 'stable getters must not re-emit');
+			}
+			assert.deepEqual([...getterPlots], [u]);
+		});
+
+		it('maps equal count ratios to equal steps in a log palette', async () => {
+			const f = countsFixture([1, 2, 4, 8, 16]), events = [];
+			const palette = Array.from({ length: 17 }, (_, i) => `rgb(${i * 15},0,0)`);
+			const u = await mount(f, 1, { colors: palette, colorScale: 'log', onColorScale: info => events.push(info) });
+			assert.equal(events.length, 1);
+			const { min, max, scale, stops } = events[0];
+			assert.deepEqual([min, max, scale], [1, 16, 'log']);
+			assert.deepEqual(stops.map(stop => stop[1]), palette);
+			close(stops.map(stop => stop[0]), palette.map((_, i) => (16 ** (i / 16) - 1) / 15));
+			checkDraw(u, f, palette, [0, 4, 8, 12, 16]);
+		});
+
+		for (const [label, options] of [
+			['empty colors', { colors: [] }],
+			['non-string color entry', { colors: ['red', 42] }],
+			['empty colors from getter', { colors: () => [] }],
+						['unknown color scale', { colors, colorScale: 'power' }],
+						['reversed color domain', { colors, colorDomain: [2, 1] }],
+		]) {
+			it(`rejects ${label}`, () => {
+				const f = countsFixture([1]);
+				assert.throws(() => {
+					const { u, plugin } = isolated({ xSize: f.xSize, grid: f.grid, ...options }, f.data);
+					plugin.hooks.setData(u);
+					plugin.hooks.draw(u);
+				});
+			});
+		}
+	});
+
 	it('merges consecutive rows by palette index, not count or CSS color, without crossing gaps or columns', () => {
 		const f = fixture({ nx: 4, ny: 7, y: { distr: 1 }, ySize: 1,
 			include: (col, row) => col != 2 && row != 2,
 			count: (col, row) => [1, 2, 0, 3, 11, 4, 5][row] });
 		const snapshot = structuredClone(f.data), selected = [], hovered = [];
-		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'red'],
-			colorIdx: count => { selected.push(count); return Math.floor(count / 10); },
-			onHover: (self, id) => hovered.push([self, id]) }, f.data);
+		const data = withCountReads(f.data, count => selected.push(count));
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'red'], colorDomain: [1, 11],
+			onHover: (self, id) => hovered.push([self, id]) }, data);
 		try {
 			plugin.hooks.setData(u);
 			plugin.hooks.draw(u);
@@ -1251,7 +1405,7 @@ describe('heatmapPlugin uniform grid', () => {
 			pixelQuery(u, .5, 97.5, null);
 			pixelQuery(u, 2.5, 99.5, null);
 			pixelQuery(u, 1, 99.5, 6);
-			assert.deepEqual(f.data, snapshot);
+			assert.deepEqual(data, snapshot);
 		}
 		finally { plugin.hooks.destroy(); }
 	});
@@ -1259,8 +1413,8 @@ describe('heatmapPlugin uniform grid', () => {
 	it('breaks same-color runs at zero-height rows even when their pixel edges touch', () => {
 		const f = fixture({ nx: 1, ny: 8, y: { distr: 1 }, yOrigin: -4, ySize: 1, include: () => true });
 		const selected = [];
-		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid,
-			colorIdx: count => { selected.push(count); return 0; } }, f.data);
+		const data = withCountReads(f.data, count => selected.push(count));
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'blue'], colorDomain: [1, 17] }, data);
 		try {
 			plugin.hooks.setData(u);
 			for (const [pixels, expected, counts] of [
@@ -1285,11 +1439,12 @@ describe('heatmapPlugin uniform grid', () => {
 	});
 
 	it('rebuilds merged runs on color redraw, count edits, replacement, in-place, and empty setData', () => {
-		const f = fixture({ nx: 2, ny: 3, y: { distr: 1 }, ySize: 1, include: () => true });
+		// Over [1, 4], counts 1 and 2 merge on linear; sqrt maps 2 to the second color.
+		const f = fixture({ nx: 2, ny: 3, y: { distr: 1 }, ySize: 1, include: () => true, count: (col, row, id) => 2 - id % 2 });
 		const snapshot = structuredClone(f.data), prepared = [];
-		let split = false;
-		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'blue'],
-			colorIdx: count => split ? count % 2 : 0, onPrepare: () => prepared.push(true) }, f.data);
+		let scale = 'linear';
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'blue'], colorDomain: [1, 4],
+			colorScale: () => scale, onPrepare: () => prepared.push(true) }, f.data);
 		const draw = expected => {
 			drawn.length = 0;
 			plugin.hooks.draw(u);
@@ -1298,17 +1453,17 @@ describe('heatmapPlugin uniform grid', () => {
 		try {
 			plugin.hooks.setData(u);
 			draw([[[0, 97, 1, 3], [1, 97, 1, 3]], []]);
-			split = true;
+			scale = 'sqrt';
 			draw([[[0, 98, 1, 1], [1, 99, 1, 1], [1, 97, 1, 1]], [[0, 99, 1, 1], [0, 97, 1, 1], [1, 98, 1, 1]]]);
 			assert.deepEqual(f.data, snapshot, 'color redraw does not mutate source data');
-			f.data[1][3].fill(2);
+			f.data[1][3].fill(1);
 			draw([[[0, 97, 1, 3], [1, 97, 1, 3]], []]);
 			pixelQuery(u, .5, 98.5, 1);
 			assert.deepEqual(u.cursor.points.bbox(u, 1), { left: 0, top: 98, width: 1, height: 1 });
 			assert.equal(prepared.length, 1, 'color and count redraws need no preparation');
 
-			u.data = fixture({ nx: 1, ny: 4, y: { distr: 1 }, ySize: 1, include: (col, row) => row != 1 }).data;
-			split = false;
+			u.data = fixture({ nx: 1, ny: 4, y: { distr: 1 }, ySize: 1, include: (col, row) => row != 1, count: () => 2 }).data;
+			scale = 'linear';
 			plugin.hooks.setData(u);
 			pixelQuery(u, .5, 98.5, null);
 			draw([[[0, 99, 1, 1], [0, 96, 1, 2]], []]);
@@ -1333,24 +1488,25 @@ describe('heatmapPlugin uniform grid', () => {
 	it('allocates all palette paths before color selection and replaces them on every draw', async () => {
 		const f = fixture({ nx: 4, ny: 1, include: () => true, count: col => col % 2 + 1 });
 		const colors = ['red', 'red', 'blue'];
-		let selected = null, allocated = null;
+		let allocated = null;
 		const counts = [];
-		const u = await mount(f, 1, { colors, colorIdx: count => {
+		const data = withCountReads(f.data, count => {
 			if (allocated) assert.equal(allocated.length, colors.length);
 			counts.push(count);
-			return selected ?? count - 1;
-		} });
+		});
+		const u = await mount({ ...f, data }, 1, { colors, colorDomain: [1, 3] });
 		assert.deepEqual(fills(u).map(p => pathRects(p).length), [2, 2, 0]);
 		assert.ok(!lastDraw(u).some(e => e[0] == 'fillRect'));
 		const Path = globalThis.Path2D;
 		let previous = fills(u);
 		try {
 			globalThis.Path2D = function(...args) { const p = new Path(...args); allocated.push(p); return p; };
-			for (selected of [1, 2, 0]) {
+			for (const selected of [1, 2, 0]) {
+				f.data[1][3].fill(selected + 1);
 				allocated = []; counts.length = 0;
 				u.redraw();
 				await Promise.resolve();
-				assert.deepEqual(counts, [1, 2, 1, 2]);
+				assert.deepEqual(counts, f.data[1][3]);
 				assert.deepEqual(fills(u), allocated);
 				assert.equal(allocated.length, 3);
 				allocated.forEach((p, i) => {
@@ -1366,9 +1522,9 @@ describe('heatmapPlugin uniform grid', () => {
 
 	it('keeps original IDs and chooses the last source at shared edges regardless of palette fill order', async () => {
 		const f = fixture({ nx: 3, ny: 3, y: { distr: 1 }, yOrigin: -1, ySize: 1,
-			include: (col, row) => !(col >= 1 && row == 1) });
+			include: (col, row) => !(col >= 1 && row == 1), count: (col, row, id) => 2 - id % 2 });
 		const calls = [];
-		const u = await mount(f, 1, { colors: ['red', 'blue'], colorIdx: count => count % 2,
+		const u = await mount(f, 1, { colors: ['red', 'blue'], colorDomain: [1, 2],
 			onHover: (self, id) => calls.push([self, id]) });
 		// IDs by column: [0,1,2], [3,4], [5,6]; omitted buckets have no source IDs.
 		for (const [x, y, id] of [[1, 0, 3], [1, 1, 4], [2, 0, 5], [2, 1, 6],
@@ -1386,8 +1542,9 @@ describe('heatmapPlugin uniform grid', () => {
 	it('selects colors only for visible noncollapsed cells and still fills all offscreen palette paths', async () => {
 		const f = fixture({ nx: 4, ny: 4, include: () => true });
 		const counts = [];
-		const u = await mount(f, 1.25, { colors: ['red', 'blue', 'green', 'orange'],
-			colorIdx: count => { counts.push(count); return Math.floor((count - 1) / 4); } });
+		const data = withCountReads(f.data, count => counts.push(count));
+		// Linear stops center each group of four consecutive counts on one color.
+		const u = await mount({ ...f, data }, 1.25, { colors: ['red', 'blue', 'green', 'orange'], colorDomain: [2.5, 14.5] });
 		u.setScale('x', { min: 1.2, max: 1.8 });
 		u.setScale('y', { min: 1.5, max: 3 });
 		counts.length = 0;
@@ -1510,13 +1667,14 @@ describe('heatmapPlugin uniform grid', () => {
 
 	it('prepares only on setData, retains one four-byte row ID per cell, and reuses capacity through growth/shrink/empty', () => {
 		const f = fixture({ y: { distr: 1 }, nx: 64, ny: 64, ySize: 1, include: () => true });
-		const colors = [];
-		const { u, plugin } = isolated({ xSize: 1, grid: f.grid, colorIdx: count => { colors.push(count); return 0; } });
+		let reads = 0;
+		const onRead = () => reads++;
+		const { u, plugin } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'blue'], colorDomain: [1, 4096] });
 		try {
 			trackTyped(allocations => {
-				u.data = f.data;
+				u.data = withCountReads(f.data, onRead);
 				plugin.hooks.setData(u);
-				assert.deepEqual(colors, [], 'no color preprocessing');
+				assert.equal(reads, 0, 'a fixed domain needs no count scan');
 				assert.equal(allocations.length, 1);
 				const [name, rows] = allocations[0];
 				assert.equal(name, 'Uint32Array');
@@ -1535,10 +1693,10 @@ describe('heatmapPlugin uniform grid', () => {
 				assert.equal(allocations.length, 1);
 				for (const n of [5000, 3, 0, 4000, 10001]) {
 					const next = fixture({ y: { distr: 1 }, nx: n, ny: 1, ySize: 1, include: () => true });
-					u.data = next.data;
-					const before = colors.length;
+					u.data = withCountReads(next.data, onRead);
+					const before = reads;
 					plugin.hooks.setData(u);
-					assert.equal(colors.length, before);
+					assert.equal(reads, before);
 					assert.equal(u.cursor.dataIdx(u, 1), null, 'setData invalidates the previous query');
 					plugin.hooks.draw(u);
 					pixelQuery(u, .5, 99.5, n ? 0 : null);
@@ -1591,14 +1749,18 @@ describe('heatmapPlugin uniform grid', () => {
 	it('reads updated positive counts on draw without rebuilding geometry', async () => {
 		const f = fixture({ nx: 2, ny: 4, include: () => true });
 		const counts = [];
-		const u = await mount(f, 1, { colorIdx: count => { counts.push(count); return 0; } });
+		const data = withCountReads(f.data, count => counts.push(count));
+		const u = await mount({ ...f, data }, 1, { colors: ['red', 'blue'], colorDomain: [1, 2] });
 		for (const values of [[.125, .25, .5, 1, 2, 3, 4, 5], Array(8).fill(1), Array(8).fill(2)]) {
 			f.data[1][3].splice(0, 8, ...values);
 			counts.length = 0;
 			u.redraw();
 			await Promise.resolve();
 			assert.deepEqual(counts, values);
-			assert.equal(fills(u).length, 1);
+			const boxes = oracleRects(u, f);
+			const paths = fills(u);
+			assert.equal(paths.length, 2);
+			paths.forEach((p, i) => checkCoverage(pathRects(p), boxes.filter(({ id }) => (values[id] >= 1.5 ? 1 : 0) == i)));
 			checkOracle(u, f);
 		}
 	});
@@ -1625,19 +1787,15 @@ describe('heatmapPlugin uniform grid', () => {
 	it('reads counts only for visible rectangles, with no finite checks or hover count reads', () => {
 		const f = fixture({ nx: 2, ny: 8, y: { distr: 1 }, ySize: 1, include: (col, row) => row != 4 && row != 5 });
 		const reads = [];
-		const data = [null, [...f.data[1]]];
-		data[1][3] = new Proxy(data[1][3], { get(target, key) {
-			if (/^\d+$/.test(String(key))) reads.push(Number(key));
-			return target[key];
-		} });
-		const { u, plugin } = isolated({ xSize: 1, grid: f.grid }, data);
+		const data = withCountReads(f.data, (count, id) => reads.push(id));
+		const { u, plugin } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'blue'], colorDomain: [1, 12] }, data);
 		u.valToPos = (v, key) => key == 'x' ? v : 100 - Math.floor(v / 2);
 		u.posToVal = (v, key) => key == 'x' ? v : (100 - v) * 2;
 		const isFinite = Number.isFinite;
 		try {
-			Number.isFinite = () => { throw new Error('Plugin must trust finite positive counts'); };
 			plugin.hooks.setData(u);
-			assert.deepEqual(reads, [], 'preparation does not read counts');
+			assert.deepEqual(reads, [], 'a fixed domain needs no count scan');
+			Number.isFinite = () => { throw new Error('Plugin must trust finite positive counts'); };
 			plugin.hooks.draw(u);
 			assert.deepEqual(reads, [1, 3, 5, 7, 9, 11], 'collapsed rows do not read counts');
 			reads.length = 0;
@@ -1845,7 +2003,7 @@ describe('heatmap cells demo integration', () => {
 				u.redraw = (...args) => { redraws++; return redraw(...args); };
 				try {
 					color.value = mode;
-					withoutColorMath(() => color.dispatchEvent(new Event('change')));
+					color.dispatchEvent(new Event('change'));
 					await Promise.resolve();
 					assert.ok(redraws > 0, 'selection requests a redraw');
 					assert.ok(u.ctx.log.length > logLength, 'selection renders immediately');
@@ -2267,51 +2425,52 @@ describe('heatmap cells demo integration', () => {
 		});
 	}
 
-	it('disables log for a huge count ratio and falls back to linear without giant allocations', async () => {
+	it('uses direct log colors for a huge count ratio across palette replacements without allocating lookup tables', async () => {
 		for (const initial of [null, 'log']) {
 			const root = createDemoRoot(), color = root.querySelector('#color-scale');
 			if (initial != null) color.value = initial;
-			const counts = [1, 10, 1e3, 1e6, 1e9, 1e12];
+			const counts = [1, 10, 1700, 1.1e6, 1.7e9, 1e12];
 			const frames = framesFor([counts.map((_, i) => (i + 1) * 60000), counts.map(() => 1), counts.map(() => 2), counts]);
 			const names = ['Array', 'ArrayBuffer', 'Uint8Array', 'Uint8ClampedArray', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Float32Array', 'Float64Array'];
 			const originals = names.map(name => globalThis[name]);
-			const guard = args => {
+			let replacing = false;
+			const guard = (name, args) => {
 				if (typeof args[0] == 'number') assert.ok(args[0] <= 2 ** 24, 'reject oversized grids before allocating');
+				if (replacing && name == 'Uint8Array') assert.fail('direct log must not allocate LUTs for unselected root scales');
 			};
 			let demo;
 			try {
 				names.forEach((name, i) => {
 					globalThis[name] = new Proxy(originals[i], {
-						construct(target, args) { guard(args); return Reflect.construct(target, args); },
-						apply(target, receiver, args) { guard(args); return Reflect.apply(target, receiver, args); },
+						construct(target, args) { guard(name, args); return Reflect.construct(target, args); },
+						apply(target, receiver, args) { guard(name, args); return Reflect.apply(target, receiver, args); },
 					});
 				});
 				demo = createDemo(root, frames);
 				await Promise.resolve();
 				const u = demo.plot;
-				assert.equal(color.querySelector('option[value="log"]').disabled, true);
-				assert.equal(color.disabled, false, 'linear and root modes remain available');
-				assert.equal(color.value, 'linear');
-				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
-				checkDemoColors(u, 'linear', 1, 1e12);
-				const legend = root.querySelector('#color-ramp').style.background;
-				color.value = 'log';
-				withoutColorMath(() => color.dispatchEvent(new Event('change')));
-				await Promise.resolve();
-				assert.equal(color.value, 'linear', 'an unavailable changed selection also falls back');
-				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
-				assert.equal(root.querySelector('#color-ramp').style.background, legend);
-				assert.equal(demo.plot, u);
-				checkDemoColors(u, 'linear', 1, 1e12);
+				assert.equal(color.disabled, false);
+				assert.equal(color.querySelector('option[value="log"]').disabled, false);
+				assert.equal(color.value, initial ?? 'linear');
+				checkDemoColors(u, color.value, 1, 1e12);
+				color.value = 'log'; color.dispatchEvent(new Event('change')); await Promise.resolve();
+				const ramp = root.querySelector('#color-ramp'), originalRamp = ramp.style.background;
+				const slider = root.querySelector('#color-count');
+				let prepares = 0;
+				u.hooks.setData.push(() => prepares++);
 				for (const size of [11, 32, 24]) {
-					const slider = root.querySelector('#color-count');
-					slider.value = `${size}`;
-					slider.dispatchEvent(new Event('input'));
-					await Promise.resolve();
-					assert.equal(color.querySelector('option[value="log"]').disabled, true);
-					assert.equal(color.value, 'linear');
+					assert.equal(approximateLogTransitions(1, 1e12, size - 1), null, 'fixture exceeds the bounded log grid');
+					replacing = true;
+					slider.value = `${size}`; slider.dispatchEvent(new Event('input')); await Promise.resolve();
+					replacing = false;
+					assert.equal(demo.plot, u);
+					assert.equal(color.value, 'log');
+					assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.log);
+					assert.equal(ramp.style.background.match(/rgb\(/g)?.length, size, 'legend follows the replacement palette');
+					checkDemoColors(u, 'log', 1, 1e12, size);
 				}
-				checkDemoColors(u, 'linear', 1, 1e12);
+				assert.equal(ramp.style.background, originalRamp);
+								assert.equal(prepares, 0, 'palette replacement only requires a redraw');
 			}
 			finally {
 				names.forEach((name, i) => { globalThis[name] = originals[i]; });
@@ -2342,7 +2501,7 @@ describe('heatmap cells demo integration', () => {
 				checkDemoColors(u, 'linear', min, max);
 				for (const mode of [...colorModes, ...colorModes]) {
 					color.value = mode;
-					withoutColorMath(() => color.dispatchEvent(new Event('change')));
+					color.dispatchEvent(new Event('change'));
 					await Promise.resolve();
 					assert.equal(demo.plot, u);
 					assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[mode]);
@@ -2362,10 +2521,9 @@ describe('heatmap cells demo integration', () => {
 		}
 	});
 
-	it('reuses setup color tables and the original count domain after setData, without scans or preparation on redraw', async () => {
+	it('refreshes count extrema on setData and reuses them on color-only redraws without scanning or preparing geometry', async () => {
 		const root = createDemoRoot(), color = root.querySelector('#color-scale');
 		root.querySelector('#y-scale').value = 'linear';
-		const min = 1, max = 64;
 		const initial = [1, 2, 4, 8, 32, 64];
 		const frames = framesFor([initial.map((_, i) => (i + 1) * 60000), initial.map(() => 1), initial.map(() => 2), initial]);
 		let demo;
@@ -2395,7 +2553,7 @@ describe('heatmap cells demo integration', () => {
 				}));
 			}
 
-			async function checkRedraw(mode, select) {
+			async function checkRedraw(mode, select, min, max) {
 				const data = u.data, before = [dataCalls, prepares, redraws];
 				const visible = data[1][3].flatMap((_, i) => {
 					const rect = bounds(u, i, true, 60);
@@ -2405,7 +2563,7 @@ describe('heatmap cells demo integration', () => {
 				try {
 					if (select) {
 						color.value = mode;
-						withoutColorMath(() => color.dispatchEvent(new Event('change')));
+						color.dispatchEvent(new Event('change'));
 					}
 					else u.redraw();
 					await Promise.resolve();
@@ -2419,29 +2577,31 @@ describe('heatmap cells demo integration', () => {
 				assert.equal(demo.plot, u); assert.equal(u.data, data);
 				assert.deepEqual([dataCalls, prepares], before.slice(0, 2));
 				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[mode]);
-				assert.equal(root.querySelector('#color-min').textContent, '1');
-				assert.equal(root.querySelector('#color-max').textContent, '64');
+				assert.equal(root.querySelector('#color-min').textContent, `${min}`);
+				assert.equal(root.querySelector('#color-max').textContent, `${max}`);
 				checkDemoColors(u, mode, min, max);
 			}
 
 			watchData(u.data);
-			for (let phase = 0; phase < 3; phase++) {
+			for (const [phase, [min, max]] of [[1, 64], [2, 32], [4, 64]].entries()) {
 				if (phase == 1) {
-					// All replacement counts are inside the original domain; none were in the fixture.
-					const counts = colorModes.flatMap(mode => colorBoundaryCounts(mode, min, max));
+					const counts = [min, ...colorModes.flatMap(mode => colorBoundaryCounts(mode, min, max)), max];
 					const next = [null, [counts.map((_, i) => (i + 1) * 60), counts.map(() => 1), counts.map(() => 2), counts]];
 					watchData(next); u.setData(next); await Promise.resolve();
 					assert.equal(u.data, next);
 				}
 				else if (phase == 2) {
-					u.data[1][3].reverse(); u.setData(u.data); await Promise.resolve();
+					const counts = u.data[1][3];
+					counts.reverse();
+					for (let i = 0; i < counts.length; i++) counts[i] *= 2;
+					u.setData(u.data); await Promise.resolve();
 				}
 				assert.deepEqual([dataCalls, prepares], [phase, phase]);
 				// Keep offscreen counts so a full-domain scan cannot masquerade as drawing.
 				u.setScale('x', { min: 90, max: u.data[1][0].at(-2) }); await Promise.resolve();
 				for (const mode of ['log', ...colorModes]) {
-					await checkRedraw(mode, true);
-					await checkRedraw(mode, false);
+					await checkRedraw(mode, true, min, max);
+					await checkRedraw(mode, false, min, max);
 				}
 			}
 		}

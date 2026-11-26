@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpus, platform, arch } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { heatmapModuleUrl } from './bench-heatmap-module.mjs';
 
 const root = new URL('../', import.meta.url);
 const args = process.argv.slice(2);
@@ -24,7 +25,7 @@ assert.equal(globalThis.__coverage__, undefined, 'Run without coverage instrumen
 const quick = args.includes('--quick'), reverse = args.includes('--reverse');
 const warmups = quick ? 3 : 6, samples = quick ? 7 : 17, targetMs = quick ? 5 : 12;
 const sha256 = text => createHash('sha256').update(text).digest('hex');
-const files = ['demos/lib/heatmapPlugin.js', 'src/utils.js', 'src/uPlot.js', 'src/opts.js',
+const files = ['demos/lib/heatmapPlugin.js', 'demos/lib/heatmapColorLut.js', 'demos/lib/heatmapFrame.js', 'src/utils.js', 'src/uPlot.js', 'src/opts.js',
 	'demos/lib/heatmapCellsData.js', 'scripts/instrument.mjs'];
 const sources = Object.fromEntries(files.map(file => [file, readFileSync(new URL(file, root), 'utf8')]));
 const sourceHashes = Object.fromEntries(files.map(file => [file, sha256(sources[file])]));
@@ -58,9 +59,9 @@ function observable(text) {
 				starts: starts.slice(), cellRows: cellRows.slice(0, length), zeroRow,
 			}),`, 'untimed preparation snapshot');
 }
-const moduleUrl = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`;
+
 const factories = [];
-for (const text of [source, candidate]) factories.push((await import(moduleUrl(observable(text)))).heatmapPlugin);
+for (const text of [source, candidate]) factories.push((await import(heatmapModuleUrl(observable(text)))).heatmapPlugin);
 
 // Extract the production math, leaving fixture preparation and row/column discovery outside timing.
 function blockInside(text, before, after) {
@@ -83,7 +84,7 @@ ${block}
 }
 async function signedLoop(text) {
 	const block = blockInside(text, '\n\t\t\tif (signed) {', '\n\t\t\t}\n\t\t\tstart = end;');
-	const { bisect } = await import(moduleUrl(text + '\nexport { bisect };'));
+	const { bisect } = await import(heatmapModuleUrl(text + '\nexport { bisect };'));
 	return new Function('bisect', '{data, starts}', `
 		const [, yMin, yMax] = data[1];
 		let minAbsEdge = Infinity, zeroMin, zeroMax;

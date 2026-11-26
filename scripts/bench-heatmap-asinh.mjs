@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { cpus } from 'node:os';
 import './instrument.mjs';
+import { heatmapModuleUrl } from './bench-heatmap-module.mjs';
 import uPlot from '../src/uPlot.js';
 import { heatmapPlugin } from '../demos/lib/heatmapPlugin.js';
 import { generateHeatmapCells } from '../demos/lib/heatmapCellsData.js';
@@ -32,7 +33,7 @@ const unsignedThreshold = `\t\t\t\tif (!signed) {
 				const thresholdArg = 'minAbsEdge == Infinity ? 1 : minAbsEdge';
 assert.equal(candidate.split(thresholdArg).length, 2, 'Plugin changed; review the onPrepare threshold argument');
 candidate = candidate.replace(thresholdArg, 'undefined');
-const { heatmapPlugin: withoutThreshold } = await import(`data:text/javascript;base64,${Buffer.from(candidate).toString('base64')}`);
+const { heatmapPlugin: withoutThreshold } = await import(heatmapModuleUrl(candidate));
 const variants = [
 	{ name: 'plugin-threshold', factory: heatmapPlugin, adaptive: false },
 	{ name: 'core-threshold', factory: withoutThreshold, adaptive: true },
@@ -234,7 +235,7 @@ const report = {
 		runtime: process.versions.bun ? `Bun ${process.versions.bun}` : `Node ${process.versions.node}`,
 		cpu: cpus()[0]?.model,
 		head: execFileSync('git', ['--no-pager', 'rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
-		sourceHashes: Object.fromEntries(['src/uPlot.js', 'src/utils.js', 'src/opts.js', 'demos/lib/heatmapPlugin.js', 'demos/lib/heatmapCellsData.js']
+		sourceHashes: Object.fromEntries(['src/uPlot.js', 'src/utils.js', 'src/opts.js', 'demos/lib/heatmapPlugin.js', 'demos/lib/heatmapColorLut.js', 'demos/lib/heatmapFrame.js', 'demos/lib/heatmapCellsData.js']
 			.map(file => [file, sha256(readFileSync(new URL(file, root)))])),
 		candidatePluginHash: sha256(candidate),
 	},

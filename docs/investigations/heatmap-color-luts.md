@@ -5,14 +5,13 @@ Date: 2026-10-17
 ## Status and scope
 
 This document records the LUT design for heatmap color indices, with emphasis on Log.
-Log now uses the approximate `logApproxLut` helper. Linear remains the default.
-The demo no longer has corrected Log or a separate `log-approx` mode.
-The helper, its math, and its error bounds remain unchanged.
+The heatmap plugin prepares the selected count-to-color mapping. Linear is the default. Log uses a bounded approximate LUT or direct logarithms.
 
 Relevant files:
 
-- `demos/heatmap-cells.js`: exact root LUTs, palette setup, and Log integration.
-- `demos/lib/heatmapColorLut.js`: the approximate Log helper, with the `logApproxLut` export.
+- `demos/lib/heatmapPlugin.js`: palette options, count domain, and cell rendering.
+- `demos/lib/heatmapColorLut.js`: linear, square-root, cube-root, and Log mappings and legend stops.
+- `demos/heatmap-cells.js` and `demos/heatmap-aggregation.js`: examples with inferred and zero-based domains.
 - `scripts/bench-heatmap-color-blocks.mjs`: root LUT benchmarks and numerical assertions.
 - `scripts/bench-heatmap-log-blocks.mjs`: the demo Log benchmark, independent density experiments, and numerical assertions.
 
@@ -20,9 +19,38 @@ The reported measurements are historical. They came from prior prototypes with u
 They do not measure the final helper. The corrected Log implementation in those comparisons is now removed.
 
 
+## Plugin color options
+
+```js
+heatmapPlugin({ xSize, colors: ['#b6e4db', '#25889f', '#102440'] });
+
+heatmapPlugin({
+  xSize,
+  colors,
+  colorScale: 'sqrt',
+  colorDomain: [0, null],
+  onColorScale({ min, max, scale, stops }) {
+    // Each stop is [fraction of the linear count range, CSS color].
+    updateLegend(min, max, scale, stops);
+  },
+});
+```
+
+`colors` is a nonempty array of CSS colors in low-to-high order. The default is `['steelblue']`. The plugin selects discrete entries without interpolation.
+`colorScale` accepts `'linear'`, `'sqrt'`, `'cbrt'`, or `'log'`. It does not change the counts or either coordinate axis.
+
+
+`colorDomain` defaults to `[null, null]`. On `setData`, each null endpoint uses the corresponding count extremum. Fixed endpoints do not require a scan.
+Counts outside the domain use the nearest endpoint. An empty dataset uses the fixed endpoint for any missing endpoint, or zero if both are missing.
+A constant domain uses the first color and a solid legend. A nonconstant Log domain must be positive.
+
+For interactive controls, `colors` and `colorScale` also accept functions of the plot instance. Return the same array until the colors change.
+To change colors, return a new array and call `plot.redraw()`. The plugin reuses the observed count bounds on redraw.
+`onColorScale` reports the resolved domain, scale, and legend stops after a change. Its offsets range from 0 to 1 on a linear count axis.
+
 ## Definitions and existing exact modes
 
-`N` is the palette size, from 11 through 32. `n = N - 1` is the largest color index.
+`N` is the palette size. The cells demo offers 11 through 32 colors. `n = N - 1` is the largest color index.
 For a nonconstant count domain, the normalized count is:
 
 ```text
@@ -98,17 +126,9 @@ Direct logarithms remain the accuracy oracle, not a selectable exact Log mode.
 
 The selector has one Log entry, with value `'log'` and label `Log`.
 There is no `'log-approx'` option. The default remains `'linear'`.
-Log uses `logApproxLut(...).lookup` and ideal logarithmic legend positions.
-The root setup block defines only square root, linear, and cube root callbacks.
-The demo assigns the Log helper after the legend setup.
-
-`logApproxLut` setup uses only the initial `min`, `max`, and `N`.
-It does not inspect individual counts or require a histogram.
-The demo retains the initial count domain across `setData` calls.
-Palette changes rebuild the LUT. Redraws and color-mode changes reuse the LUT.
-
-The lookup contract covers counts within the retained domain.
-New data outside that domain needs a separate domain policy. Domain retention does not imply automatic rescaling or clamping.
+Log uses ideal logarithmic legend positions. `logApproxLut` uses only the resolved `min`, `max`, and `N`.
+The plugin prepares only the active scale. It reuses the lookup while the palette, scale, and resolved domain stay the same.
+The normalized root tables depend on palette length, not on the count domain. Palettes with more than 32 colors use direct root math.
 
 ### Resolution from the smallest transition spacing
 
@@ -262,13 +282,12 @@ For nonconstant domains, bounds must be finite and satisfy `0 < min < max`.
 
 The helper returns `null` for an invalid log domain, a nonfinite resolution or count scale, or `M > 2**24`.
 It also rejects unsupported palette sizes and distinct domains whose logarithms round to the same value.
-The demo disables the Log option in these cases.
-An unsupported Log selection falls back to Linear, not to a corrected Log implementation.
+For a valid positive domain outside these limits, the plugin uses direct logarithms. Log remains available in the demo.
 
 The resolution limit bounds allocation and avoids bitwise index overflow.
 At `M = 2**24`, the directory needs 262,145 bytes: approximately 256 KiB, plus one byte.
 The block storage adds at most 4,032 bytes.
-Large ratios can therefore disable the mode instead of creating an excessive directory.
+Large ratios can therefore bypass the LUT without a large allocation.
 
 ## HISTORICAL: prototype memory tradeoffs across ratios
 
@@ -376,10 +395,7 @@ It does not extract Log callbacks from the demo source.
 For the fourfold density, it compares the helper's intervals, directory, and blocks with the prototype.
 Full runs time the actual helper lookup as `demo Log` alongside the independent variants.
 
-The root benchmark retains source extraction through the `// Legend position is linear in count;` marker.
-That block contains only square root, linear, and cube root callbacks. It does not contain the later Log helper assignment.
-The root benchmark neither returns nor asserts the removed `logLookup`.
-Source extraction has explicit marker assertions.
+The root benchmark imports `prepareHeatmapColorScale` and compares its root mappings with independent reference tables.
 
 ### Root LUT runs
 
@@ -409,9 +425,9 @@ The integration checks for the current design cover:
 - Directory entries, transition positions, monotone block contents, and final-block padding.
 - The `2N - 1` block bound and byte accounting without a full virtual-table allocation.
 - Invalid domains, nonfinite resolution, and the `2**24` resolution limit.
-- A disabled Log option and fallback to Linear for an unsupported Log selection.
+- Direct logarithms for valid Log domains outside the LUT limits.
 - An unchanged linear default, one `Log` entry, and no `log-approx` option.
-- A retained domain across `setData`, palette-triggered rebuilds, and reuse across redraws and color-mode changes.
+- Inferred domains on `setData`, palette changes, and reuse across redraws.
 - Unchanged exact root modes and use of the existing approximate helper for Log.
 
 Finite numerical samples supplement the real-arithmetic proof. They do not replace its assumptions or establish exhaustive floating-point correctness.

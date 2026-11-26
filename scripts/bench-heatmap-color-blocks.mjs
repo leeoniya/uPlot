@@ -5,34 +5,24 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { cpus } from 'node:os';
+import { prepareHeatmapColorScale } from '../demos/lib/heatmapColorLut.js';
 import { generateHeatmapCells } from '../demos/lib/heatmapCellsData.js';
 
 assert.ok(process.argv.slice(2).every(arg => ['--reverse', '--json'].includes(arg)), 'Unknown argument');
 assert.equal(globalThis.__coverage__, undefined, 'Run without coverage instrumentation');
-const source = readFileSync(new URL('../demos/heatmap-cells.js', import.meta.url), 'utf8');
-const start = '\t\tconst colorLookup = new Uint8Array(';
-const end = '\t\t// Legend position is linear in count;';
-assert.equal(source.split(start).length, 2, 'Review LUT setup extraction');
-assert.equal(source.split(end).length, 2, 'Review LUT setup extraction');
-const setup = source.slice(source.indexOf(start), source.indexOf(end));
-const buildCurrent = new Function('colorCount', 'minCount', 'maxCount', `
-	const countRange = maxCount - minCount || 1;
-
-	let colorIndices;
-	${setup}
-	return { colorIndices, colorLookup, cubeDirectory, cubeLookup, cubeIntervals };
-`);
+const source = readFileSync(new URL('../demos/lib/heatmapColorLut.js', import.meta.url), 'utf8');
+const buildLookup = (colors, scale, min, max) => prepareHeatmapColorScale(Array(colors).fill('steelblue'), scale, min, max).lookup;
 // Exhaustively check the production builder, including every shared-block boundary.
 for (let colors = 11; colors <= 32; colors++) {
-	const current = buildCurrent(colors, 1, 64);
-	for (const name of ['colorLookup', 'cubeDirectory', 'cubeLookup'])
-		assert.ok(current[name] instanceof Uint8Array, name);
-	for (let i = 0, color = 0; i <= current.cubeIntervals; i++) {
+	const intervals = (2 * (colors - 1)) ** 3;
+	const lookup = buildLookup(colors, 'cbrt', 0, intervals);
+	for (let i = 0, color = 0; i <= intervals; i++) {
 		if (i == (2 * color + 1) ** 3) color++;
-		assert.equal(current.cubeLookup[(current.cubeDirectory[i >>> 6] << 6) | (i & 63)], color);
+		assert.equal(lookup(i), color);
 	}
-	assert.equal(current.colorIndices.cbrt(1), 0);
-	assert.equal(current.colorIndices.cbrt(64), colors - 1);
+	const bounded = buildLookup(colors, 'cbrt', 1, 64);
+	assert.equal(bounded(1), 0);
+	assert.equal(bounded(64), colors - 1);
 }
 const frame = generateHeatmapCells({ xGapProbability: .02 })[0];
 const counts = frame.data.values[frame.schema.fields.findIndex(field => field.name == 'count')];
@@ -86,7 +76,6 @@ function add(name, lookup, reference) {
 }
 
 for (const colors of [24, 32]) {
-	const current = buildCurrent(colors, min, max);
 	for (const power of [2, 3]) {
 		const root = power == 2 ? 'sqrt' : 'cbrt';
 		const flat = new Uint8Array((2 * (colors - 1)) ** power + 1);
@@ -107,12 +96,9 @@ for (const colors of [24, 32]) {
 		storage.push({ colors, root, flatBytes: flat.byteLength, directoryBytes: directory.byteLength,
 			uniqueBlocks: blocks.length / 64, blockBytes: blocks.byteLength, sharedBytes: directory.byteLength + blocks.byteLength });
 		const reference = count => Math.round(Math[root]((count - min) / (max - min)) * (colors - 1));
-		if (root == 'cbrt') {
-			assert.deepEqual(current.cubeDirectory, directory);
-			assert.deepEqual(current.cubeLookup, blocks);
-		}
-		else assert.deepEqual(current.colorLookup, flat);
-		add(`${colors} ${root} demo`, current.colorIndices[root], reference);
+		const gridLookup = buildLookup(colors, root, 0, flat.length - 1);
+		for (let i = 0; i < flat.length; i++) assert.equal(gridLookup(i), flat[i]);
+		add(`${colors} ${root} demo`, buildLookup(colors, root, min, max), reference);
 		// Per-instance immutable closures match the demo; no module-level data access in the hot path.
 		for (const shared of [false, true]) {
 			const name = `${colors} ${root} ${shared ? 'shared64' : 'flat Uint8'}`;

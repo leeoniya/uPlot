@@ -4,12 +4,13 @@ import { closestIdx } from '../src/utils.js';
 import { snapshot1, snapshot2 } from './data/heatmap-snapshots.js';
 import { heatmapCells, heatmapRows } from './lib/heatmapFrameAdapters.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
-import { logApproxLut } from './lib/heatmapColorLut.js';
+
 
 // Spectral, cool to warm; interpolate when the palette size changes, not for each cell.
 const stops = ['5e4fa2', '3288bd', '66c2a5', 'abdda4', 'e6f598', 'ffffbf', 'fee08b', 'fdae61', 'f46d43', 'd53e4f', '9e0142'];
 const rgb = stops.map(hex => [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)));
 
+const exactRange = (u, min, max) => [min, max];
 const filterAxisSplits = (u, splits, axisIdx, space, incr) => u.axes[axisIdx].filter(u, splits, axisIdx, space, incr);
 const axisLines = { stroke: '#252a30', width: 2 };
 const utcDate = seconds => uPlot.tzDate(seconds * 1000, 'Etc/UTC');
@@ -85,102 +86,38 @@ export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parity
 }
 
 function createView(root, dataset) {
-	const { xSize, data: sourceData, axes, scales, zeroHeight = 0, formatY = formatSeconds } = dataset;
+	const { fields, grid, xSize, data: sourceData, axes, zeroHeight = 0, formatY = formatSeconds } = dataset;
 	const hasZeroBucket = zeroHeight > 0;
 	const labeledX = labeledAxis(axes?.[0]);
 	const labeledY = labeledAxis(axes?.[1]);
+	const centeredX = grid?.x?.categories != null, centeredY = grid?.y?.categories != null;
+	const ordinalY = centeredY || !!labeledY;
 	const intervalLabel = xSize == 60 ? 'one-minute' : xSize % 60 == 0 ? `${xSize / 60}-minute` : `${xSize}-second`;
-	const [xs, yMin, yMax, counts] = sourceData[1];
-	let minCount = Infinity, maxCount = -Infinity;
-	for (let i = 0; i < counts.length; i++) {
-		minCount = Math.min(minCount, counts[i]);
-		maxCount = Math.max(maxCount, counts[i]);
-	}
-	if (!counts.length) minCount = maxCount = 0;
-	const countRange = maxCount - minCount || 1;
-	const logRange = Math.log(maxCount) - Math.log(minCount);
+
+
 	const colorCountInput = root.querySelector('#color-count');
 	const colorCountValue = root.querySelector('#color-count-value').firstChild;
-	// Retain the array passed to the plugin, including when the palette shrinks or grows.
-	const palette = [];
-	let colorIndices;
-	const colorRamps = {};
+	let palette;
 
 	function updatePalette() {
 		const colorCount = colorCountInput.valueAsNumber;
 		colorCountValue.data = `${colorCount}`;
-		palette.length = colorCount;
-		for (let i = 0; i < colorCount; i++) {
+		palette = Array.from({ length: colorCount }, (_, i) => {
 			const t = i / (colorCount - 1) * (rgb.length - 1);
 			const lo = Math.min(Math.floor(t), rgb.length - 2);
-			palette[i] = `rgb(${rgb[lo].map((v, c) => Math.round(v + (rgb[lo + 1][c] - v) * (t - lo))).join(',')})`;
-		}
-
-		// For round(sqrt(t) * (colorCount - 1)), transitions occur at odd squares
-		// when t is scaled by 4 * (colorCount - 1)^2. This keeps the lookup bins aligned.
-		const colorLookup = new Uint8Array(4 * (colorCount - 1) ** 2 + 1);
-		for (let i = 0; i < colorCount; i++)
-			colorLookup.fill(i, i == 0 ? 0 : (2 * i - 1) ** 2, (2 * i + 1) ** 2);
-		const countScale = (colorLookup.length - 1) / countRange;
-		const linearScale = (colorCount - 1) / countRange;
-
-		// Cube-root transitions occur at odd cubes on an 8 * (colorCount - 1)^3 grid.
-		// Share solid 64-entry blocks; only blocks crossing transitions need unique data.
-		const cubeIntervals = 8 * (colorCount - 1) ** 3;
-		const cubeDirectory = new Uint8Array(Math.ceil((cubeIntervals + 1) / 64));
-		// At most one solid block per color and one mixed block per transition.
-		const cubeBlocks = new Uint8Array((2 * colorCount - 1) * 64);
-		const solidBlocks = new Array(colorCount);
-		let blockCount = 0;
-		for (let block = 0, color = 0, next = 1; block < cubeDirectory.length; block++) {
-			const start = block * 64;
-			while (start >= next) next = (2 * ++color + 1) ** 3;
-			const solid = start + 64 <= next;
-			let id = solid ? solidBlocks[color] : undefined;
-			if (id == null) {
-				id = blockCount++;
-				if (solid) solidBlocks[color] = id;
-				for (let i = 0; i < 64; i++) {
-					while (start + i >= next) next = (2 * ++color + 1) ** 3;
-					cubeBlocks[id * 64 + i] = color;
-				}
-			}
-			cubeDirectory[block] = id;
-		}
-		const cubeLookup = cubeBlocks.slice(0, blockCount * 64);
-		const cubeScale = cubeIntervals / countRange;
-		colorIndices = {
-			sqrt: count => colorLookup[Math.floor((count - minCount) * countScale)],
-			linear: count => Math.round((count - minCount) * linearScale),
-			cbrt: count => {
-				const i = Math.floor((count - minCount) * cubeScale);
-				return cubeLookup[(cubeDirectory[i >>> 6] << 6) | (i & 63)];
-			},
-
-		};
-		// Legend position is linear in count; invert each transform to place palette stops.
-		for (const mode of ['linear', 'sqrt', 'cbrt', 'log']) {
-			colorRamps[mode] = minCount == maxCount ? palette[0] : `linear-gradient(to right, ${palette.map((color, i) => {
-				const t = i / (colorCount - 1);
-				const pos = mode == 'sqrt' ? t * t : mode == 'cbrt' ? t * t * t : mode == 'log' ? minCount * Math.expm1(logRange * t) / countRange : t;
-				return `${color} ${i == colorCount - 1 ? 100 : pos * 100}%`;
-			}).join(',')})`;
-		}
-		const logLut = logApproxLut(colorCount, minCount, maxCount);
-		colorIndices.log = logLut?.lookup;
-		const logOption = root.querySelector('#color-scale option[value="log"]');
-		logOption.disabled = logLut == null;
-		logOption.title = logLut == null ? 'Unavailable: the count domain is invalid or the LUT exceeds its size or numeric limit.' : '';
+			return `rgb(${rgb[lo].map((v, c) => Math.round(v + (rgb[lo + 1][c] - v) * (t - lo))).join(',')})`;
+		});
 	}
 	updatePalette();
 	const xRange = [0, xSize];
 
 	let data = sourceData;
-	let signedData;
+	let signedData, heatmap;
 
 
 	function mirroredData() {
 		if (signedData == null) {
+			const [xs, yMin, yMax, counts] = sourceData[1];
 			const cells = Array.from({ length: 4 }, () => new Array(xs.length * 2));
 			let index = 0;
 			const add = (x, lo, hi, count) => {
@@ -210,8 +147,8 @@ function createView(root, dataset) {
 	const status = root.querySelector('#status');
 	readoutText.data = hint;
 	const colorRamp = root.querySelector('#color-ramp');
-	root.querySelector('#color-min').textContent = format(minCount);
-	root.querySelector('#color-max').textContent = format(maxCount);
+	const colorMin = root.querySelector('#color-min');
+	const colorMax = root.querySelector('#color-max');
 
 	const host = root.querySelector('#plot');
 	const height = root.querySelector('#height');
@@ -225,21 +162,20 @@ function createView(root, dataset) {
 	const yScale = root.querySelector('#y-scale');
 	const colorScale = root.querySelector('#color-scale');
 	const colorScaleLabel = root.querySelector('#color-scale-label');
-	let colorIdx;
-	const updateColorScale = () => {
-		if (colorScale.value == 'log' && colorIndices.log == null) colorScale.value = 'linear';
-		colorIdx = colorIndices[colorScale.value];
-		colorRamp.style.background = colorRamps[colorScale.value];
-		colorScaleLabel.textContent = `Count · ${colorScale.value == 'sqrt' ? '√' : colorScale.value == 'cbrt' ? '∛' : colorScale.value} scale`;
-	};
-	updateColorScale();
+
 	const signed = root.querySelector('#signed-data');
 	const logOptions = yScale.querySelectorAll('option[value^="log"]');
-	if (hasZeroBucket || labeledY) signed.checked = false;
+	if (hasZeroBucket || ordinalY) signed.checked = false;
 	const previousScale = yScale.value;
-	if (labeledY) yScale.value = 'linear';
+	if (ordinalY) yScale.value = 'linear';
 	if (signed.checked) data = mirroredData();
 	heightValue.data = `${height.value}px`;
+
+	function applyFrame(u) {
+		heatmap.setFrame(dataset);
+		const [x0, x1] = u.scales.x.scan(u, 'x'), [y0, y1] = u.scales.y.scan(u, 'y');
+		status.textContent = `${u.data[1][0].length.toLocaleString()} cells · ${Math.round((x1 - x0) / xSize)} columns · ${y1 - y0} ordinal rows`;
+	}
 
 	function createPlot(width, plotHeight = height.valueAsNumber) {
 		const nonpositive = signed.checked || hasZeroBucket;
@@ -274,17 +210,23 @@ function createView(root, dataset) {
 			return [min, max];
 		}
 
-		return new uPlot({
+		const geometry = fields ? {fields} : {
+			xSize, grid: grid ?? (hasZeroBucket || signed.checked ? { y: { distr: 3, factor: dataset.factor } } : undefined),
+		};
+		const opts = {
 			mode: 2,
 			tzDate: utcDate,
 			width,
 			height: plotHeight,
 			legend: { show: false },
 			cursor: { drag: { x: true, y: true } },
-			scales: {
-				// Preparation supplies bounds and the adaptive threshold without core data scans.
-				x: scales?.x ?? { scan: false, range: () => xRange },
-				y: scales?.y ?? {
+			scales: fields ? {
+				x: { time: dataset.scales?.x.time ?? true, range: exactRange },
+				y: { range: exactRange },
+			} : {
+				// Legacy transformed grids supply their own display bounds and adaptive threshold.
+				x: { scan: false, range: () => xRange },
+				y: {
 					distr: isLog ? 3 : mode == 'asinh' ? 4 : 1,
 					log: logBase,
 					asinh: () => asinhThreshold,
@@ -302,8 +244,7 @@ function createView(root, dataset) {
 					grid: { ...axisLines, filter: filterAxisSplits },
 					ticks: { ...axisLines, filter: filterAxisSplits },
 					size: 85,
-					values: (u, splits) => splits.map(v => v == null ? null : formatY(v)),
-					...labeledY?.opts,
+					...(ordinalY ? labeledY?.opts : {values: (u, splits) => splits.map(v => v == null ? null : formatY(v))}),
 				},
 			],
 			hooks: hasZeroBucket ? { setSize: [u => {
@@ -315,25 +256,25 @@ function createView(root, dataset) {
 				}
 			}] } : {},
 			series: [{}, { label: 'Heatmap' }],
-			plugins: [heatmapPlugin({
-				xSize,
-
+			plugins: [heatmap = heatmapPlugin({
+				...geometry,
 				cellGap: () => gap,
-
 				zeroHeight,
-				grid: dataset.grid ?? (hasZeroBucket || signed.checked ? { y: { distr: 3, factor: dataset.factor } } : undefined),
-				colors: palette,
-				colorIdx: count => colorIdx(count),
+				colors: () => palette,
+				colorScale: () => colorScale.value,
+				onColorScale({ min, max, stops, scale }) {
+					colorMin.textContent = format(min);
+					colorMax.textContent = format(max);
+					colorScaleLabel.textContent = `Count · ${scale == 'sqrt' ? '√' : scale == 'cbrt' ? '∛' : scale} scale`;
+					colorRamp.style.background = min == max ? stops[0][1] :
+						`linear-gradient(to right, ${stops.map(([offset, color]) => `${color} ${offset * 100}%`).join(', ')})`;
+				},
 				onPrepare(u, minY, maxY, threshold, zeroMin, zeroMax) {
+					hoverIdx = undefined;
+					if (fields) return;
 					data = u.data;
 					asinhThreshold = threshold;
-					hoverIdx = undefined;
 					const xs = data[1][0];
-					if (scales) {
-						const [min, max] = scales.x.range;
-						status.textContent = `${xs.length.toLocaleString()} cells · ${(max - min) / xSize} columns · ${scales.y.range[1]} ordinal rows`;
-						return;
-					}
 					if (xs.length > 0) {
 						xRange[0] = xs[0] - xSize;
 						xRange[1] = xs.at(-1);
@@ -355,15 +296,19 @@ function createView(root, dataset) {
 					if (i === hoverIdx)
 						return;
 					hoverIdx = i;
-					const [xs, yMin, yMax, counts] = u.data[1];
 					if (i == null) { readoutText.data = hint; return; }
-					const x = labeledX ? labeledX.cell(xs[i] - xSize, xs[i]) :
-						u.axes[0].values(u, [xs[i] - xSize, xs[i]], 0, 0, xSize).join('–').replace(/\n/g, ' ') + ' UTC';
-					const y = labeledY ? labeledY.cell(yMin[i], yMax[i]) : `${formatY(yMin[i])}–${formatY(yMax[i])}`;
-					readoutText.data = `${x} · Y: ${y} · Count: ${format(counts[i])}`;
+					const cols = u.data[1], xVal = cols[0][i], yVal = cols[1][i];
+					const x = centeredX ? u.axes[0].values(u, [xVal], 0, 0, 1)[0] : labeledX ? labeledX.cell(xVal - xSize, xVal) :
+						u.axes[0].values(u, [xVal - xSize, xVal], 0, 0, xSize).join('–').replace(/\n/g, ' ') + ' UTC';
+					const y = centeredY ? u.axes[1].values(u, [yVal], 1, 0, 1)[0] : labeledY ? labeledY.cell(yVal, cols[2][i]) :
+						`${formatY(yVal)}–${formatY(cols[2][i])}`;
+					readoutText.data = `${x} · Y: ${y} · Count: ${format(cols.at(-1)[i])}`;
 				},
 			})],
-		}, data, host);
+		};
+		const plot = new uPlot(opts, fields ? null : data, host);
+		if (fields) applyFrame(plot);
+		return plot;
 	}
 
 	let plot = createPlot(host.clientWidth || 1000);
@@ -379,11 +324,8 @@ function createView(root, dataset) {
 		plot.redraw(false, false);
 	};
 
-	const setData = () => plot.setData(plot.data);
-	const setColorScale = () => {
-		updateColorScale();
-		plot.redraw(false, false);
-	};
+	const setData = () => fields ? applyFrame(plot) : plot.setData(plot.data);
+	const setColorScale = () => plot.redraw(false, false);
 	const setColorCount = () => {
 		updatePalette();
 		setColorScale();
@@ -409,13 +351,13 @@ function createView(root, dataset) {
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
 	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = false;
-	signed.disabled = hasZeroBucket || !!labeledY;
-	yScale.disabled = !!labeledY;
+	signed.disabled = hasZeroBucket || ordinalY;
+	yScale.disabled = ordinalY;
 
 	return {
 		get plot() { return plot; },
 		destroy() {
-			if (labeledY) yScale.value = previousScale;
+			if (ordinalY) yScale.value = previousScale;
 			height.removeEventListener('input', setHeight);
 			cellGap.removeEventListener('input', setGap);
 

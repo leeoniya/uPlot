@@ -59,9 +59,8 @@ describe('native-library heatmap comparisons', () => {
 		['empty arrays', f => f[1].data.values.forEach(a => a.length = 0)],
 		['missing column', f => f[1].schema.fields[0].name = 'unknown'],
 		['invalid interval', f => f[1].schema.fields[2].config.interval = 0],
-		['nonfinite time', f => f[1].data.values[2][0] = NaN],
-		['nonpositive count', f => f[1].data.values[0][0] = 0],
-		['inverted bucket', f => f[1].data.values[1][0] = 2],
+		['nonfinite interval', f => f[1].schema.fields[2].config.interval = Infinity],
+		['unequal column lengths', f => f[1].data.values[0].pop()],
 	]) {
 		it(`rejects ${name}`, () => {
 			const f = frames(); mutate(f);
@@ -128,13 +127,26 @@ describe('native-library heatmap comparisons', () => {
 		});
 	}
 
-	it('rejects irregular raster grids and duplicate matrix entries', () => {
-		let f = frames(); f[1].data.values[2][0] += 1000;
-		assert.throws(() => gridShape(readCells(f)), /uniform/);
-		f = frames(); f[1].data.values[1][0] = 9;
-		assert.throws(() => gridShape(readCells(f)), /uniform/);
-		f = frames(); f[1].data.values[2][0] = 60000;
-		assert.throws(() => gridCells(readCells(f)), /Duplicate/);
+	it('derives the grid shape from extents and one bucket without rescanning cells', () => {
+		const cells = readCells(frames());
+		let reads = 0;
+		for (const column of [cells.times, cells.yMin, cells.yMax, cells.counts]) {
+			const value = column[1];
+			Object.defineProperty(column, 1, { get() { reads++; return value; } });
+		}
+		const { nx, ny } = gridShape(cells);
+		assert.deepEqual([nx, ny], [3, 3]);
+		assert.equal(reads, 0);
+	});
+
+	it('rejects an oversized dense allocation even when the grid size is a safe integer', () => {
+		const f = frames();
+		f[1].schema.fields[2].config.interval = 1;
+		f[1].data.values[2][0] = 2 ** 51;
+		const cells = readCells(f);
+		const { nx, ny } = gridShape(cells);
+		assert.ok(Number.isSafeInteger(nx * ny));
+		assert.throws(() => gridCells(cells), /matrix or edge array is too large/);
 	});
 
 	it('finds sparse cells without collapsing gaps, including exact half-open boundaries', () => {

@@ -1,7 +1,10 @@
-// Requires mode: 2, ascending X runs, and ascending Y cells within each run.
-// Data: [null, [xMax, yMin, yMax, count]]. Missing columns and rows remain sparse.
-// Counts must be finite and positive; omit empty buckets rather than supplying zero/null counts.
-// Both axes must follow an aligned, uniform progression in their grid transform.
+import { prepareHeatmapColorScale } from './heatmapColorLut.js';
+import { compileHeatmapFields, heatmapRunEnd, maxHeatmapCells } from './heatmapFrame.js';
+
+// Mode 2. The producer supplies ascending X runs, strictly ascending rows in each run,
+// aligned uniform buckets, and finite positive counts. Omit empty buckets.
+// With fields, setFrame({data, grid}) supplies uniform linear geometry. See heatmapPlugin.md.
+// Without fields, data is [null, [xMax, yMin, yMax, count]]. The following grid options are legacy:
 // grid uses distr: 1 (linear), 3 (log), or 4 (asinh, with a fixed numeric threshold).
 // Explicit grid.y {distr: 3, factor: >1} instead uses signed exponential rows:
 // Regular edges are factor ** integer, mirrored below zero. One shared bucket may straddle zero.
@@ -16,11 +19,77 @@
 // Half the effective gap is inset from each clipped cell edge.
 // Gaps affect drawing, not hit testing. Cells too small for the gap stay hoverable with full-cell outlines.
 // An effective positive gap disables adjacent-row merging. Fractional gaps are not rounded to device pixels.
-// colorIdx returns a palette index. onHover receives the original source index or null.
+// colors is an ordered array of CSS colors. colorScale selects linear (default), sqrt, cbrt, or log.
+// Both options accept values or (u) => value. Return a new colors array when its contents change.
+// colorDomain: [min, max]. Each null endpoint uses the counts from the last setData.
+// onColorScale({min, max, scale, stops}) reports [fraction, color] stops on a linear count axis.
+// onHover receives the original source index or null.
 // onPrepare receives (u, minY, maxY, asinhThreshold, zeroMin, zeroMax). Empty data has null extrema.
 // zeroMin and zeroMax are the source bounds of the straddling bucket, or undefined if absent.
 // asinhThreshold is the smallest nonzero absolute edge of a regular Y bucket, with fallback 1.
-export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
+export function heatmapPlugin({ fields, xSize, grid, cellGap = 0, zeroHeight = 0, colors: colorOption = ['steelblue'], colorScale = 'linear', colorDomain = [null, null], onColorScale, onHover = () => {}, onPrepare }) {
+	const resolve = fields === undefined ? null : compileHeatmapFields(fields);
+	if (resolve && (xSize !== undefined || grid !== undefined))
+		throw new TypeError('With fields, supply grid geometry on the frame');
+	grid ??= {};
+	const fieldCount = fields?.length;
+	let plot, frameData, geometry, categories, cells;
+
+	function installFrame(frame) {
+		geometry = resolve(frame);
+		frameData = frame.data;
+		const x = frame.grid?.x?.categories, y = frame.grid?.y?.categories;
+		// A label-only change needs a new axis layout even when both numeric bounds stay the same.
+		if (categories || x || y) {
+			categories = x || y ? {x, y} : null;
+			plot.redraw(false, true);
+		}
+	}
+
+	function setFrame(frame) {
+		if (!plot) throw new Error('Mount the heatmap before calling setFrame');
+		// Resolve metadata before any setData hook or scale scanner sees the new raw columns.
+		installFrame(frame);
+		plot.setData(frame.data);
+	}
+
+	const dynamicColors = typeof colorOption == 'function' || typeof colorScale == 'function';
+	if (!Array.isArray(colorDomain) || colorDomain.length !== 2 || !colorDomain.every(v => v === null || Number.isFinite(v)))
+		throw new TypeError('colorDomain must contain two finite numbers or null endpoints');
+	const [lower, upper] = colorDomain;
+	if (lower != null && upper != null && lower > upper)
+		throw new RangeError('colorDomain minimum exceeds maximum');
+	let colors, lookupColor, domainMin, domainMax, preparedMin, preparedMax, preparedScale;
+
+	function updateColors(u) {
+		const next = typeof colorOption == 'function' ? colorOption(u) : colorOption;
+		const scale = typeof colorScale == 'function' ? colorScale(u) : colorScale;
+		if (next === colors && scale === preparedScale && domainMin === preparedMin && domainMax === preparedMax) return;
+		const { lookup, stops } = prepareHeatmapColorScale(next, scale, domainMin, domainMax);
+		colors = next;
+		lookupColor = lookup;
+		preparedScale = scale;
+		preparedMin = domainMin;
+		preparedMax = domainMax;
+		onColorScale?.({ min: domainMin, max: domainMax, scale, stops });
+	}
+
+	function prepareColors(u) {
+		let min = Infinity, max = -Infinity;
+		if (lower == null || upper == null) {
+			const counts = cells[3];
+			for (let i = 0; i < counts.length; i++) {
+				const count = counts[i];
+				min = Math.min(min, count);
+				max = Math.max(max, count);
+			}
+			if (!counts.length) min = max = lower ?? upper ?? 0;
+		}
+		domainMin = lower ?? Math.min(min, upper ?? Infinity);
+		domainMax = upper ?? Math.max(max, lower ?? -Infinity);
+		updateColors(u);
+	}
+
 	const gapOption = cellGap;
 	function cssSize(option, name, u) {
 		const size = typeof option == 'function' ? option(u) : option;
@@ -43,7 +112,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 	}
 
 	const x = axis(grid.x, 1);
-	const y = axis(grid.y, 3);
+	const y = axis(grid.y, resolve ? 1 : 3);
 	const signed = grid.y?.distr == 3 && grid.y.factor != null;
 	const factor = grid.y?.factor;
 	const logFactor = signed ? Math.log(factor) : 0;
@@ -64,13 +133,13 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 
 	// starts[col] and starts[col + 1] delimit a source run. Missing columns have equal offsets.
 	const starts = [];
-	// Preparation-only dedupe: repeated Y bounds reuse a row ID without another grid transform.
+	// Map distinct lower edges to row IDs for paint and hover; this is not a cell validator.
 	const rowIds = new Map();
 	// Each source cell retains only its inferred Y bucket ID. Missing Y buckets prevent offset-only lookup.
 	let cellRows = new Uint32Array(0);
 	let length = 0;
 	// Paths group source cells by color. Each draw replaces the paths but reuses the array.
-	const paths = new Array(colors.length);
+	const paths = [];
 
 	let over = null;
 	let ready = false;
@@ -88,24 +157,37 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 		queryX = queryY = NaN;
 	}
 
+	function checkBucket(index, count, axis) {
+		if (!(index >= 0 && index < count))
+			throw new RangeError(`${axis} bucket index ${index} outside prepared grid of size ${count}`);
+	}
+
 	function prepare(u) {
-		const [xs, yMin, yMax] = u.data[1];
-		length = xs.length;
+		// A redraw after a failed preparation must not traverse a partial grid.
+		length = 0;
+		invalidate();
+		if (resolve && frameData !== u.data) installFrame({data: u.data});
+		cells = geometry?.cells ?? u.data[1];
+		prepareColors(u);
+		const [xs, yMin, yMax] = cells;
+		const n = xs.length;
 		rowIds.clear();
 		zeroRow = -1;
 
-		invalidate();
-		if (length == 0) {
+		if (n == 0) {
 			x.count = y.count = 0;
 			x.values.length = x.pixels.length = y.values.length = y.pixels.length = starts.length = heights.length = 0;
 			onPrepare?.(u, null, null, 1);
 			return;
 		}
 
-		x.step = xSize;
+		x.step = geometry?.xSize ?? xSize;
 		x.invStep = 1 / x.step;
 		x.origin = x.fwd(xs[0]) - x.step;
-		x.count = Math.round((x.fwd(xs[length - 1]) - x.origin) * x.invStep);
+		x.count = Math.round((x.fwd(xs[n - 1]) - x.origin) * x.invStep);
+		// Supplied extents bound the scale, not these arrays derived from occupied cells.
+		if (resolve && !(x.count >= 1 && x.count <= maxHeatmapCells))
+			throw new RangeError(`Invalid heatmap column count: ${x.count}`);
 		x.values.length = x.count + 1;
 		starts.length = x.count + 1;
 		for (let col = 0; col <= x.count; col++)
@@ -115,18 +197,15 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 		let minY = Infinity, maxY = -Infinity;
 		let minAbsEdge = Infinity, zeroMin, zeroMax;
 		let nextCol = 0;
-		for (let start = 0; start < length;) {
+		for (let start = 0; start < n;) {
 			const xMax = xs[start];
 			const col = Math.round((x.fwd(xMax) - x.origin) * x.invStep) - 1;
+			checkBucket(col, x.count, 'X');
 			while (nextCol <= col)
 				starts[nextCol++] = start;
 			x.values[col + 1] = xMax;
 
-			// Bracket the next run, then locate its start without scanning every repeated X.
-			let stride = 1;
-			while (start + stride < length && xs[start + stride] == xMax)
-				stride *= 2;
-			const end = bisect(xs, xMax, start + (stride >>> 1) + 1, Math.min(start + stride, length), false, true);
+			const end = heatmapRunEnd(xs, start);
 			minY = Math.min(minY, yMin[start]);
 			maxY = Math.max(maxY, yMax[end - 1]);
 			if (signed) {
@@ -146,7 +225,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 			start = end;
 		}
 		while (nextCol <= x.count)
-			starts[nextCol++] = length;
+			starts[nextCol++] = n;
 
 		if (signed) {
 			positiveStart = zeroMin == null ? 1 : 3;
@@ -157,28 +236,35 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 		}
 		else {
 			y.origin = y.fwd(minY);
-			y.step = y.fwd(yMax[0]) - y.fwd(yMin[0]);
+			y.step = geometry?.ySize ?? (y.fwd(yMax[0]) - y.fwd(yMin[0]));
 			y.invStep = 1 / y.step;
 			y.count = Math.round((y.fwd(maxY) - y.origin) * y.invStep);
 		}
+		// x.count >= 1 for named frames, so the product bounds the row count too.
+		if (resolve && !(y.count >= 1 && x.count * y.count <= maxHeatmapCells))
+			throw new RangeError(`Invalid heatmap grid size: ${x.count} by ${y.count}`);
 		y.values.length = y.count + 1;
 		for (let row = 0; row <= y.count; row++)
 			y.values[row] = y.bwd(y.origin + row * y.step);
 		if (zeroMin != null) {
 			zeroRow = 1 - y.origin;
+			checkBucket(zeroRow, y.count, 'Y');
 			rowIds.set(zeroMin, zeroRow);
 
 			y.values[zeroRow] = zeroMin;
 			y.values[zeroRow + 1] = zeroMax;
 		}
-		if (cellRows.length < length)
-			cellRows = new Uint32Array(Math.max(length, cellRows.length * 2));
+		if (cellRows.length < n) {
+			const capacity = Math.max(n, cellRows.length * 2);
+			cellRows = new Uint32Array(resolve ? Math.min(capacity, maxHeatmapCells) : capacity);
+		}
 
-		for (let i = 0; i < length; i++) {
+		for (let i = 0; i < n; i++) {
 			const bottom = yMin[i];
 			let row = rowIds.get(bottom);
 			if (row == null) {
 				row = Math.round((y.fwd(bottom) - y.origin) * y.invStep);
+				checkBucket(row, y.count, 'Y');
 				rowIds.set(bottom, row);
 				// Preserve exact source edges and collect the display threshold once per distinct row.
 				const top = yMax[i];
@@ -194,6 +280,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 			}
 			cellRows[i] = row;
 		}
+		length = n;
 		onPrepare?.(u, minY, maxY, minAbsEdge == Infinity ? 1 : minAbsEdge, zeroMin, zeroMax);
 	}
 
@@ -306,6 +393,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 	}
 
 	function draw(u) {
+		if (dynamicColors) updateColors(u);
 		const { ctx, bbox } = u;
 		cellGap = typeof gapOption == 'function' ? cssSize(gapOption, 'cellGap', u) : gapOption;
 		// Match the rounded canvas dimensions and the overlay's CSS origin, not nominal DPR.
@@ -334,7 +422,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 			for (let i = 0; i < paths.length; i++)
 				paths[i] = new Path2D();
 
-			const counts = u.data[1][3];
+			const counts = cells[3];
 			const gapX = cellGap * cssToCanX, gapY = cellGap * cssToCanY;
 			ctx.save();
 			for (let col = 0; col < x.count; col++) {
@@ -348,7 +436,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 							const row = cellRows[i];
 							const height = heights[row] - gapY;
 							if (height > 0)
-								paths[colorIdx(counts[i])].rect(left + gapX / 2, y.pixels[row + 1] + gapY / 2, width - gapX, height);
+								paths[lookupColor(counts[i])].rect(left + gapX / 2, y.pixels[row + 1] + gapY / 2, width - gapX, height);
 						}
 					}
 					continue;
@@ -358,7 +446,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 				for (let i = starts[col], end = starts[col + 1]; i < end; i++) {
 					const row = cellRows[i];
 					if (heights[row] > 0) {
-						const color = colorIdx(counts[i]);
+						const color = lookupColor(counts[i]);
 						if (color != runColor || row != lastRow + 1) {
 							if (runColor >= 0)
 								paths[runColor].rect(left, top, width, bottom - top);
@@ -384,8 +472,39 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 		onHover(u, lookup(u));
 	}
 
+	function initCategoryAxis(axis, opts) {
+		const key = axis.scale;
+		if (!axis.show || (key !== 'x' && key !== 'y')) return;
+		const {splits, values} = axis;
+		if (opts?.splits == null) {
+			axis.splits = (u, i, min, max, incr, ...rest) => {
+				const labels = categories?.[key];
+				if (!labels) return splits(u, i, min, max, incr, ...rest);
+				const step = Math.max(1, Math.ceil(incr)), ticks = [];
+				for (let v = Math.max(0, Math.ceil(min / step) * step); v <= max && v < labels.length; v += step)
+					ticks.push(v);
+				return ticks;
+			};
+		}
+		if (opts?.values == null) {
+			axis.values = (u, ticks, ...rest) => {
+				const labels = categories?.[key];
+				return labels ? ticks.map(v => labels[v] ?? null) : values(u, ticks, ...rest);
+			};
+		}
+	}
+
 	return {
+		...(resolve && {setFrame}),
 		opts: (u, opts) => {
+			if (resolve) {
+				opts.data ??= [null, Array.from({length: fieldCount}, () => [])];
+				const scales = opts.scales ??= {};
+				const x = scales.x ??= {}, y = scales.y ??= {};
+				x.time ??= false;
+				x.scan ??= () => geometry?.xRange ?? [null, null];
+				y.scan ??= () => geometry?.yRange ?? [null, null];
+			}
 			Object.assign(opts.series[1], {
 				facets: [{ scale: 'x', sorted: 1 }, { scale: 'y' }, { scale: 'y' }],
 				paths: () => null,
@@ -400,7 +519,12 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 			};
 		},
 		hooks: {
-			init: u => {
+			init: (u, opts) => {
+				if (resolve) {
+					if (plot) throw new Error('Use one heatmap plugin instance per plot');
+					plot = u;
+					u.axes.forEach((axis, i) => initCategoryAxis(axis, opts.axes?.[i]));
+				}
 				over = u.over;
 				over.addEventListener('mouseenter', mouseEnter, true);
 				over.addEventListener('mouseleave', mouseLeave);
@@ -411,7 +535,8 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 			destroy: () => {
 				over.removeEventListener('mouseenter', mouseEnter, true);
 				over.removeEventListener('mouseleave', mouseLeave);
-				over = cellRows = null;
+				over = plot = frameData = geometry = categories = cells = null;
+				cellRows = new Uint32Array(0);
 				rowIds.clear();
 				x.values.length = x.pixels.length = y.values.length = y.pixels.length = starts.length = heights.length = paths.length = 0;
 				pointerInside = false;
@@ -424,7 +549,7 @@ export function heatmapPlugin({ xSize, grid = {}, cellGap = 0, zeroHeight = 0, c
 // Searches [lo, hi) for an insertion index. inclusive skips equal values, so shared edges select the later bucket.
 function bisect(values, value, lo, hi, descending = false, inclusive = false) {
 	while (lo < hi) {
-		const mid = (lo + hi) >>> 1;
+		const mid = lo + ((hi - lo) >>> 1);
 		const edge = values[mid];
 		if ((descending ? edge > value : edge < value) || inclusive && edge == value)
 			lo = mid + 1;

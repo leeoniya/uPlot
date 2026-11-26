@@ -58,11 +58,13 @@ describe('Perspective heatmap cells demo', () => {
 		assert.equal(c.columns[timeColumn][0] - c.columns[timeColumn][3], 120000);
 	});
 
-	it('validates the input grid before starting a worker', async () => {
-		const f = frames(); f[1].data.values[1][0] = 9;
+	it('rejects unsafe grid dimensions before starting a worker', async () => {
+		const f = frames();
+		f[1].schema.fields[2].config.interval = 1;
+		f[1].data.values[2][0] = 2 ** 52;
 		const root = rootFor(), api = mock(root);
 		try {
-			await assert.rejects(createDemo(root, f, api), /uniform/);
+			await assert.rejects(createDemo(root, f, api), /Invalid heatmap grid dimensions/);
 			assert.deepEqual(api.calls, []);
 		}
 		finally { root.remove(); }

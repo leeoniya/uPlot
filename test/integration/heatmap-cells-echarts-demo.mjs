@@ -131,6 +131,28 @@ describe('ECharts heatmap cells demo', () => {
 		assert.equal(prepared.maxCount, 29);
 	});
 
+	it('keeps fractional source endpoints without testing each cell for finiteness', () => {
+		const frames = sparseFrames();
+		frames[1].schema.fields[2].config.interval = 10;
+		frames[1].data.values[2] = [20.1, .1, .1];
+		const checked = [], isFinite = Number.isFinite;
+		let prepared;
+		try {
+			Number.isFinite = value => { checked.push(value); return isFinite(value); };
+			prepared = prepareData(frames);
+		}
+		finally { Number.isFinite = isFinite; }
+		assert.deepEqual(checked, [10], 'only the interval needs a finiteness check');
+		assert.deepEqual(prepared.xCategories, ['0.1', '10.1', '20.1']);
+		assert.deepEqual(prepared.data, new Float64Array([2, 2, 17, 0, 0, 3, 0, 2, 29]));
+	});
+
+	it('rejects category counts that exceed the maximum array length', () => {
+		const frames = sparseFrames();
+		source(frames, 'xMax')[0] = 60000 * 2 ** 32;
+		assert.throws(() => prepareData(frames), /category array is too large/);
+	});
+
 	it('prepares and passes every generated source cell to native ECharts without changing the source', {timeout: 15000}, function() {
 		const frames = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const snapshot = structuredClone(frames);
@@ -194,16 +216,7 @@ describe('ECharts heatmap cells demo', () => {
 		['unequal field lengths', frames => source(frames, 'count').pop()],
 		['zero interval', frames => { frames[1].schema.fields[2].config.interval = 0; }],
 		['negative interval', frames => { frames[1].schema.fields[2].config.interval = -60000; }],
-		['nonfinite time', frames => { source(frames, 'xMax')[0] = NaN; }],
-		['off-grid time', frames => { source(frames, 'xMax')[0] += 1; }],
-		['nonfinite count', frames => { source(frames, 'count')[0] = Infinity; }],
-		['zero lower bucket bound', frames => { source(frames, 'yMin')[0] = 0; }],
-		['negative bucket', frames => { source(frames, 'yMin')[0] = -8; source(frames, 'yMax')[0] = -4; }],
-		['reversed bucket', frames => { source(frames, 'yMin')[0] = 16; }],
-		['zero-width bucket', frames => { source(frames, 'yMin')[0] = 8; }],
-		['nonfinite bucket', frames => { source(frames, 'yMax')[0] = Infinity; }],
-		['nonuniform bucket ratio', frames => { source(frames, 'yMax')[0] = 16; }],
-		['off-grid geometric bucket', frames => { source(frames, 'yMin')[0] = 3; source(frames, 'yMax')[0] = 6; }],
+		['nonfinite interval', frames => { frames[1].schema.fields[2].config.interval = Infinity; }],
 	]) {
 		it(`rejects ${name} with an Error`, () => {
 			const frames = sparseFrames();

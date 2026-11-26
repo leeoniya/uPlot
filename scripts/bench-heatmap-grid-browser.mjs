@@ -15,6 +15,8 @@ writeFileSync(join(profile, 'user.js'), 'user_pref("dom.max_script_run_time", 24
 const files = new Map([
 	['/scripts/bench-heatmap-grid.mjs', readFileSync(new URL('./bench-heatmap-grid.mjs', import.meta.url))],
 	['/demos/lib/heatmapPlugin.js', inputs.currentSource],
+	['/demos/lib/heatmapColorLut.js', inputs.colorLutSource],
+	['/demos/lib/heatmapFrame.js', inputs.frameSource],
 	['/demos/lib/heatmapPlugin-baseline.js', inputs.baselineSource],
 	['/demos/lib/flatbush.js', inputs.flatbushSource],
 	['/fixture.json', inputs.fixtureSource],

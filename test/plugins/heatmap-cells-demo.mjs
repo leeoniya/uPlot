@@ -197,6 +197,12 @@ describe('heatmap cells demo', () => {
 			await settleLayout();
 			const original = demo.plot.data[1];
 			const range = key => [demo.plot.scales[key].min, demo.plot.scales[key].max];
+			function fullRange(key, expected) {
+				const scale = demo.plot.scales[key];
+				assert.deepEqual(scale.scan(demo.plot, key).slice(0, 2), expected);
+				assert.deepEqual(scale.range(demo.plot, 5, 7, key), [5, 7], 'range passes through scanned bounds');
+				assert.deepEqual(range(key), expected);
+			}
 			function ticks(idx, splits, labels) {
 				assert.deepEqual(demo.plot.axes[idx]._splits, splits);
 				assert.deepEqual(demo.plot.axes[idx]._values, labels);
@@ -206,10 +212,12 @@ describe('heatmap cells demo', () => {
 				const u = demo.plot;
 				u.setPxRatio(1.5);
 				await settleLayout();
-				const [xs, lo, hi] = u.data[1];
+				const centered = source === 'categorical';
+				const [xs, ys, hi] = u.data[1];
 				const boxes = xs.map((x, i) => {
-					const left = u.valToPos(x - xStep, 'x', true), top = u.valToPos(hi[i], 'y', true);
-					return [left, top, u.valToPos(x, 'x', true) - left, u.valToPos(lo[i], 'y', true) - top];
+					const right = x + (centered ? 0.5 : 0);
+					const left = u.valToPos(right - xStep, 'x', true), top = u.valToPos(centered ? ys[i] + 0.5 : hi[i], 'y', true);
+					return [left, top, u.valToPos(right, 'x', true) - left, u.valToPos(ys[i] - (centered ? 0.5 : 0), 'y', true) - top];
 				});
 				assertCoverage(rectangles(u), boxes);
 				assert.equal(scale.disabled, true);
@@ -232,8 +240,8 @@ describe('heatmap cells demo', () => {
 			await switchToOrdinal('classic', 300);
 			function checkClassic() {
 				assert.equal(demo.plot.scales.x.time, true);
-				assert.deepEqual(range('x'), [1789840200, 1790727900]);
-				assert.deepEqual(range('y'), [0, 5]);
+				fullRange('x', [1789840200, 1790727900]);
+				fullRange('y', [0, 5]);
 				assertNativeTimeLabels(demo.plot);
 				ticks(1, [0, 1, 2, 3, 4, 5], ['-Inf', '1.0', '2.0', '4.0', '8.0', '+Inf']);
 			}
@@ -248,17 +256,27 @@ describe('heatmap cells demo', () => {
 			await switchToOrdinal('categorical', 1);
 			function checkCategorical() {
 				assert.equal(demo.plot.scales.x.time, false);
-				assert.deepEqual(range('x'), [0, 3]);
-				assert.deepEqual(range('y'), [0, 3]);
-				ticks(0, [.5, 1.5, 2.5], ['GET', 'POST', 'DELETE']);
-				ticks(1, [.5, 1.5, 2.5], ['2xx', '4xx', '5xx']);
+				fullRange('x', [-.5, 2.5]);
+				fullRange('y', [-.5, 2.5]);
+				ticks(0, [0, 1, 2], ['GET', 'POST', 'DELETE']);
+				ticks(1, [0, 1, 2], ['2xx', '4xx', '5xx']);
+				assert.equal(root.querySelector('#status').textContent, '7 cells · 3 columns · 3 ordinal rows');
 			}
 			checkCategorical();
-			await zoom(1, 3, 1, 2);
-			ticks(0, [1.5, 2.5], ['POST', 'DELETE']);
-			ticks(1, [1.5], ['4xx']);
-			const u = demo.plot;
-			u.setCursor({ left: u.valToPos(1.5, 'x'), top: u.valToPos(1.5, 'y') });
+			const u = demo.plot, raw = u.data;
+			assert.deepEqual(raw[1], [[0, 0, 0, 1, 1, 2, 2], [0, 1, 2, 0, 1, 0, 2], [25, 4, 1, 18, 3, 6, 2]]);
+			let updates = 0;
+			u.hooks.setData.push(() => updates++);
+			root.querySelector('#set-data').click();
+			await settleLayout();
+			assert.equal(updates, 1);
+			assert.equal(demo.plot, u);
+			assert.equal(u.data, raw);
+			checkCategorical();
+			await zoom(.5, 2.5, .5, 1.5);
+			ticks(0, [1, 2], ['POST', 'DELETE']);
+			ticks(1, [1], ['4xx']);
+			u.setCursor({ left: u.valToPos(1, 'x'), top: u.valToPos(1, 'y') });
 			const hover = root.querySelector('#hover').textContent;
 			assert.match(hover, /\bPOST\b/);
 			assert.match(hover, /\b4xx\b/);

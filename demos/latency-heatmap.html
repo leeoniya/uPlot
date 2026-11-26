@@ -85,14 +85,11 @@
 				return round(n) / p;
 			}
 
-			function histogram(vals, bucket, filter, sort) {
+			function histogram(vals, bucket, sort) {
 				let hist = new Map();
 
 				for (let i = 0; i < vals.length; i++) {
-					let v = vals[i];
-
-					if (v != null)
-						v = bucket(v);
+					let v = bucket(vals[i]);
 
 					let entry = hist.get(v);
 
@@ -102,7 +99,6 @@
 						hist.set(v, {value: v, count: 1});
 				}
 
-				filter && filter.forEach(v => hist.delete(v));
 
 				let bins = [...hist.values()];
 
@@ -122,12 +118,12 @@
 				];
 			}
 
-			function aggAll(data, round, filter, sort) {
+			function aggAll(data, round, sort) {
 				let allVals = [].concat(...data[1]);
-				return histogram(allVals, round, filter, sort);
+				return histogram(allVals, round, sort);
 			}
 
-			function aggEach(data, round, filter, sort) {
+			function aggEach(data, round, sort) {
 				let data2 = [
 					data[0],
 					[],
@@ -135,7 +131,7 @@
 				];
 
 				data[1].forEach((vals, xi) => {
-					let [ bins, counts ] = histogram(vals, round, filter, sort);
+					let [ bins, counts ] = histogram(vals, round, sort);
 
 					data2[1].push(bins);
 					data2[2].push(counts);
@@ -224,11 +220,11 @@
 			let bucketIncr = 5;
 			let histOffset = 0;
 			const histBucket = v => incrRoundDn(v - histOffset, bucketIncr) + histOffset;
-			const histFilter = [null];
+
 			const histSort = (a, b) => a - b;
 
 			console.time("aggEach");
-			let agg = aggEach(raw, histBucket, histFilter, histSort);
+			let agg = aggEach(raw, histBucket, histSort);
 			console.timeEnd("aggEach");
 
 		//	console.log(raw);
@@ -720,7 +716,7 @@
 			};
 
 			console.time("aggAll");
-			let hist = aggAll(raw, histBucket, histFilter, histSort);
+			let hist = aggAll(raw, histBucket, histSort);
 			console.timeEnd("aggAll");
 
 			let u3 = new uPlot(opts3, hist, document.body);
@@ -732,7 +728,7 @@
 				curSizeEl.textContent = bucketIncr;
 
 				console.time("aggAll");
-				hist = aggAll(raw, histBucket, histFilter, histSort);
+				hist = aggAll(raw, histBucket, histSort);
 				console.timeEnd("aggAll");
 
 				u3.setData(hist);
@@ -745,7 +741,7 @@
 				curOffsetEl.textContent = histOffset;
 
 				console.time("aggAll");
-				hist = aggAll(raw, histBucket, histFilter, histSort);
+				hist = aggAll(raw, histBucket, histSort);
 				console.timeEnd("aggAll");
 
 				u3.setData(hist);

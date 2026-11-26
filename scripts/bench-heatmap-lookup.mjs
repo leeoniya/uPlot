@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { cpus } from 'node:os';
 import './instrument.mjs';
+import { heatmapModuleUrl } from './bench-heatmap-module.mjs';
 import uPlot from '../src/uPlot.js';
 import { generateHeatmapCells } from '../demos/lib/heatmapCellsData.js';
 
@@ -23,7 +24,7 @@ const sha256 = text => createHash('sha256').update(text).digest('hex');
 assert.ok(source.includes('function bucketAt(axis, pixel, guess, inclusive)'));
 assert.ok(binarySource.includes('function bisect('));
 const factories = await Promise.all([source, binarySource].map(async text =>
-	(await import(`data:text/javascript;base64,${Buffer.from(text).toString('base64')}`)).heatmapPlugin));
+	(await import(heatmapModuleUrl(text))).heatmapPlugin));
 
 // Rendering is neither measured nor recorded. Real uPlot scale/coordinate methods remain in use.
 globalThis.Path2D = class { rect() {} };
@@ -191,6 +192,8 @@ const report = {
 		cpu: cpus()[0]?.model, logicalCpus: cpus().length, baselineRef,
 		head: execFileSync('git', ['--no-pager', 'rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
 		sourceSha256: sha256(source), binarySha256: sha256(binarySource),
+		colorLutSha256: sha256(readFileSync(new URL('demos/lib/heatmapColorLut.js', root))),
+		frameSha256: sha256(readFileSync(new URL('demos/lib/heatmapFrame.js', root))),
 		fixtureGenerator: { path: generatorPath, options: generatorOptions, sourceSha256: sha256(generatorSource) }, fixtureSha256: sha256(fixtureSource) },
 	protocol: { warmup, samples, repeats, queryCount, alternatingOrder: true, units: 'microseconds/query',
 		chart: { width: 1001, height: 601, dpr: 1.25 },

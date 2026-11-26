@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { logApproxLut } from '../../demos/lib/heatmapColorLut.js';
+import { logApproxLut, prepareHeatmapColorScale } from '../../demos/lib/heatmapColorLut.js';
 import { generateHeatmapCells } from '../../demos/lib/heatmapCellsData.js';
 
 describe('approximate log color LUT', () => {
@@ -125,6 +125,142 @@ describe('approximate log color LUT', () => {
 		finally {
 			names.forEach((name, i) => { Math[name] = originals[i]; });
 			globalThis.Uint8Array = Uint8;
+		}
+	});
+});
+
+const palette = n => Array.from({ length: n }, (_, i) => `hsl(${i} 80% 50%)`);
+const modes = ['linear', 'sqrt', 'cbrt', 'log'];
+
+describe('prepared heatmap color scale', () => {
+	it('rejects invalid palettes, scales, and unresolved domains before constant shortcuts', () => {
+		for (const colors of [null, [], 'red', [''], Array(1), [1]])
+			assert.throws(() => prepareHeatmapColorScale(colors, 'linear', 0, 0), TypeError);
+		for (const [scale, min, max] of [['other', 0, 0], ['log', -1, 3], ['log', 0, 1],
+			['sqrt', 1, 0], ['cbrt', Infinity, Infinity], ['linear', NaN, 0]])
+			assert.throws(() => prepareHeatmapColorScale(['red'], scale, min, max), RangeError);
+	});
+
+	it('uses a solid first color for single colors and constant domains, including empty data', () => {
+		for (const scale of modes) {
+			for (const [colors, min, max] of [[['red'], 1, 10], [['red', 'blue'], 0, 0], [['red', 'blue'], -3, -3]]) {
+				const { lookup, stops } = prepareHeatmapColorScale(colors, scale, min, max);
+				assert.deepEqual(stops, [[0, 'red'], [1, 'red']]);
+				assert.deepEqual([-Infinity, min, max, Infinity].map(lookup), [0, 0, 0, 0]);
+			}
+		}
+	});
+
+	it('inverts each transform for the legend and clamps both ends of the lookup', () => {
+		const colors = ['#abc', 'var(--mid)', 'steelblue'];
+		for (const [scale, mid] of [['linear', .5], ['sqrt', .25], ['cbrt', .125], ['log', 1 / 11]]) {
+			const { lookup, stops } = prepareHeatmapColorScale(colors, scale, 1, 100);
+			assert.deepEqual(stops.map(s => s[1]), colors);
+			assert.equal(stops[0][0], 0);
+			assert.equal(stops[2][0], 1);
+			assert.ok(Math.abs(stops[1][0] - mid) < 1e-15);
+			assert.deepEqual([-Infinity, 1, 1 + mid * 99, 100, Infinity].map(lookup), [0, 0, 1, 2, 2]);
+		}
+	});
+
+	it('switches exactly at every odd-square and odd-cube boundary', () => {
+		for (let n = 2; n <= 32; n++) {
+			for (const [scale, power] of [['sqrt', 2], ['cbrt', 3]]) {
+				const min = -8, max = min + (2 * (n - 1)) ** power;
+				const { lookup } = prepareHeatmapColorScale(palette(n), scale, min, max);
+				for (let i = 1; i < n; i++) {
+					const edge = min + (2 * i - 1) ** power;
+					assert.equal(lookup(edge - .25), i - 1);
+					assert.equal(lookup(edge), i);
+				}
+			}
+		}
+	});
+
+	it('builds only the requested root table and reuses it across domains and palettes', () => {
+		const colors = palette(9);
+		for (const scale of ['sqrt', 'cbrt']) prepareHeatmapColorScale(palette(8), scale, 0, 1);
+		const Uint8 = globalThis.Uint8Array;
+		let allocations = 0;
+		try {
+			globalThis.Uint8Array = class extends Uint8 { constructor(...args) { super(...args); allocations++; } };
+			prepareHeatmapColorScale(colors, 'linear', 0, 1);
+			prepareHeatmapColorScale(colors, 'log', 1, 2);
+			assert.equal(allocations, 0);
+			const sqrt = prepareHeatmapColorScale(colors, 'sqrt', 0, 1);
+			assert.equal(allocations, 1);
+			prepareHeatmapColorScale(colors, 'cbrt', 0, 1);
+			assert.ok(allocations > 1);
+			const built = allocations;
+			for (const scale of ['sqrt', 'cbrt']) {
+				const { lookup } = prepareHeatmapColorScale(colors.slice().reverse(), scale, 1, 5);
+				assert.equal(lookup(2), scale == 'sqrt' ? 4 : 5);
+			}
+			assert.equal(sqrt.lookup(.25), 4);
+			assert.equal(allocations, built);
+		}
+		finally { globalThis.Uint8Array = Uint8; }
+	});
+
+	it('uses approximate log where supported and direct log outside the LUT limits', () => {
+		const approx = logApproxLut(24, 1, 392);
+		const { lookup } = prepareHeatmapColorScale(palette(24), 'log', 1, 392);
+		// The first true log transition is slightly before its LUT grid point.
+		const edge = 392 ** (.5 / 23) + 1e-10;
+		assert.equal(lookup(edge), approx.lookup(edge));
+		assert.equal(lookup(edge), 0);
+		for (const [n, max] of [[9, 100], [24, 1e12]]) {
+			const direct = prepareHeatmapColorScale(palette(n), 'log', 1, max);
+			assert.equal(direct.lookup(max ** .75), Math.round(.75 * (n - 1)));
+		}
+	});
+
+	it('maps direct log counts and legend stops without checking finiteness during lookup', () => {
+		const colors = palette(9);
+		// In the wide domain, the seventh interior count is finite but its ratio to min overflows.
+		for (const [lo, hi] of [[0, 8], [-600, 600]]) {
+			const min = 2 ** lo, max = 2 ** hi;
+			const { lookup, stops } = prepareHeatmapColorScale(colors, 'log', min, max);
+			const isFinite = Number.isFinite;
+			try {
+				Number.isFinite = () => assert.fail('lookup called Number.isFinite');
+				for (let i = 0; i < colors.length; i++) {
+					const count = 2 ** (lo + (hi - lo) * i / (colors.length - 1));
+					assert.equal(lookup(count), i);
+					assert.equal(lookup(min + (max - min) * stops[i][0]), i);
+				}
+			}
+			finally { Number.isFinite = isFinite; }
+		}
+	});
+
+	it('keeps indices above 255 for large palettes without allocating root grids', () => {
+		const colors = palette(2049);
+		const Uint8 = globalThis.Uint8Array;
+		try {
+			globalThis.Uint8Array = function() { assert.fail('large palette allocated a LUT'); };
+			for (const [scale, count] of [['linear', 5], ['sqrt', 3], ['cbrt', 2], ['log', 3]]) {
+				const { lookup, stops } = prepareHeatmapColorScale(colors, scale, 1, 9);
+				assert.equal(lookup(count), 1024);
+				assert.equal(stops.length, colors.length);
+			}
+		}
+		finally { globalThis.Uint8Array = Uint8; }
+	});
+
+	it('handles overflowing spans, subnormal counts and near-equal positive logs', () => {
+		const colors = palette(9), tiny = Number.MIN_VALUE, huge = Number.MAX_VALUE;
+		for (const [scale, mid] of [['linear', 4], ['sqrt', 6], ['cbrt', 6]]) {
+			for (const [min, count, max] of [[-huge, 0, huge], [0, 4 * tiny, 8 * tiny]])
+				assert.equal(prepareHeatmapColorScale(colors, scale, min, max).lookup(count), mid);
+		}
+		for (const [min, mid, max] of [[1e300, 1e300 * (1 + 1e-14), 1e300 * (1 + 2e-14)], [tiny, 1, huge], [tiny, 2 * tiny, 4 * tiny]]) {
+			const { lookup, stops } = prepareHeatmapColorScale(colors, 'log', min, max);
+			assert.equal(lookup(mid), 4);
+			assert.equal(stops[0][0], 0);
+			assert.equal(stops.at(-1)[0], 1);
+			for (let i = 1; i < stops.length; i++) assert.ok(stops[i][0] >= stops[i - 1][0]);
+			assert.ok(stops[4][0] > 0 && stops[4][0] < 1);
 		}
 	});
 });

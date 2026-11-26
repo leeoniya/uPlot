@@ -215,4 +215,5 @@ Multiple series can use different X arrays and scale mappings. This does not rem
 
 - [Heatmap cells demo](../demos/heatmap-cells.html): additional Y bounds, sparse cells, and custom hover lookup.
 - [Heatmap plugin](../demos/lib/heatmapPlugin.js): custom preparation, drawing, and cell hit testing.
+- [Heatmap frame updates](../demos/lib/heatmapPlugin.md): replace a uniform grid on a mounted mode-2 plot.
 - [Faceted-mode migration investigation](investigations/faceted-mode-migration.md): proposed native ordered-X hover, shared groups, and directional range dependencies.

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>XY heatmap aggregation</title>
+	<link rel="stylesheet" href="../src/uPlot.css">
+	<style>
+		body { max-width: 64rem; margin: 24px auto; padding: 0 16px; font: 15px system-ui, sans-serif; color: #182c36; }
+		fieldset { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 0; padding: 0; margin: 0 0 12px; }
+		legend { padding: 0 0 6px; }
+		button[aria-pressed="true"] { background: #195273; color: white; }
+		#grid input[type="range"] { width: min(12rem, 45vw); vertical-align: middle; }
+		#grid output { display: inline-block; min-width: 3ch; font-variant-numeric: tabular-nums; }
+
+		#plot { width: min(100%, 680px); }
+		#legend { width: min(260px, 100%); margin: 12px 0; }
+		#color-ramp { height: 10px; }
+		#legend figcaption { display: flex; justify-content: space-between; margin-top: 4px; }
+		.u-cursor-pt { border-radius: 0; }
+	</style>
+</head>
+<body>
+	<h1>XY heatmap aggregation</h1>
+	<p>Click any distribution to draw 250,000 new points, even if it is already selected. The bucket sliders change the grid without resampling.</p>
+	<div>
+		<fieldset id="samplers">
+			<legend>Distribution</legend>
+			<button type="button" value="cloud" aria-pressed="false">Correlated cloud</button>
+			<button type="button" value="annulus" aria-pressed="false">Uniform annulus</button>
+			<button type="button" value="clusters" aria-pressed="true">Three clusters</button>
+			<button type="button" value="moons" aria-pressed="false">Two moons</button>
+			<button type="button" value="spiral" aria-pressed="false">Noisy spiral</button>
+			<button type="button" value="checkerboard" aria-pressed="false">Checkerboard</button>
+		</fieldset>
+		<fieldset id="grid">
+			<legend>Bucket counts</legend>
+			<label>X buckets <input id="nx" type="range" min="8" max="128" step="1" value="128"></label>
+			<output id="nx-value" for="nx">128</output>
+			<label>Y buckets <input id="ny" type="range" min="8" max="128" step="1" value="128"></label>
+			<output id="ny-value" for="ny">128</output>
+			<label><input id="lock-grid" type="checkbox" checked> Lock X and Y counts</label>
+		</fieldset>
+	</div>
+	<p id="status" role="status">Preparing samples…</p>
+
+	<div id="plot"></div>
+	<figure id="legend">
+		<div id="color-ramp" aria-hidden="true"></div>
+		<figcaption><span>0</span><span>Count · square-root scale</span><span id="color-max"></span></figcaption>
+	</figure>
+	<output id="hover"></output>
+	<script type="module" src="./heatmap-aggregation.js"></script>
+</body>
+</html>
