@@ -5,33 +5,61 @@ const measureContexts = new Map();
 function measureContext(font) {
 	let ctx = measureContexts.get(font);
 	if (ctx == null) {
-		ctx = new OffscreenCanvas(1, 1).getContext('2d');
+		let canvas = typeof OffscreenCanvas != 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
+		canvas.width = canvas.height = 1;
+		ctx = canvas.getContext('2d');
 		ctx.font = font;
+		// Keep common fonts warm without retaining a canvas for every historical font/DPR.
+		if (measureContexts.size == 16)
+			measureContexts.delete(measureContexts.keys().next().value);
 		measureContexts.set(font, ctx);
 	}
 	return ctx;
 }
 
+function textWidth(ctx, text) {
+	if (text.indexOf('\n') == -1)
+		return ctx.measureText(text).width;
+	let width = 0;
+	for (let line of text.split('\n'))
+		width = max(width, ctx.measureText(line).width);
+	return width;
+}
+
 function measureAxisLabels(axis, pxRatio) {
 	let values = axis._values;
-	let prev = axis._labelValues;
-	let same = values === prev || prev != null && values.length == prev.length && values.every((value, i) => value === prev[i]);
+	let font = axis.font[0];
+	// Rotation and tuple padding can request the same measurements in one layout.
+	if (axis._labelValues === values && axis._widthFont === font)
+		return;
 
-	if (!same) {
-		let ctx = measureContext(axis.font[0]);
-		axis._labelWidths = values.map(value => {
-			if (value == null)
-				return 0;
-			let text = '' + value;
-			if (text.indexOf('\n') == -1)
-				return ctx.measureText(text).width / pxRatio;
-			let width = 0;
-			for (let line of text.split('\n'))
-				width = max(width, ctx.measureText(line).width);
-			return width / pxRatio;
-		});
+	let texts = axis._labelTexts ??= [];
+	let widths = axis._labelWidths ??= [];
+	if (axis._widthFont !== font)
+		texts.length = 0;
+
+	let byText, ctx;
+	for (let i = 0; i < values.length; i++) {
+		let text = values[i] == null ? null : '' + values[i];
+		if (text === texts[i])
+			continue;
+
+		// Index the previous view once, before overwriting its first changed slot.
+		if (byText == null) {
+			byText = new Map();
+			for (let j = 0; j < texts.length; j++)
+				byText.set(texts[j], widths[j]);
+		}
+		let width = byText.get(text);
+		if (width == null) {
+			width = text == null ? 0 : textWidth(ctx ??= measureContext(font), text) / pxRatio;
+			byText.set(text, width);
+		}
+		texts[i] = text;
+		widths[i] = width;
 	}
-
+	texts.length = widths.length = values.length;
+	axis._widthFont = font;
 	axis._labelValues = values;
 }
 

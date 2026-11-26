@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import '../../scripts/instrument.mjs';
 import uPlot from '../../src/uPlot.js';
-import { autoAxisSize } from '../../src/axis.js';
 import { createCharts, createDemo, dataUrl, initialRange, parseCsv } from '../../demos/candlestick.js';
 
 const start = Date.parse('2021-07-14T01:08:00Z') / 1e3;
@@ -412,7 +411,7 @@ describe('candlestick demo behavior', () => {
 				assert.equal(new Set(axis._values).size, axis._values.length);
 			}
 			for (const u of plots) for (const axis of u.axes.slice(1).filter(axis => axis._show)) {
-				assert.equal(axis.size, autoAxisSize);
+				assert.equal(axis.size, uPlot.autoAxisSize);
 				assert.ok(Number.isFinite(axis._size));
 				assert.ok(axis._size >= Math.max(...axis._labelWidths) + axis.gap + axis.ticks.size);
 			}

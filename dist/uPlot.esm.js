@@ -1300,9 +1300,6 @@ const xAxisOpts = {
 	nice,
 	gap: 5,
 	alignTo: 1,
-	size: 50,
-	labelGap: 0,
-	labelSize: 30,
 	labelFont,
 	side: 2,
 	grid,
@@ -1422,9 +1419,6 @@ const yAxisOpts = {
 	nice,
 	gap: 5,
 	alignTo: 1,
-	size: 50,
-	labelGap: 0,
-	labelSize: 30,
 	labelFont,
 	side: 3,
 	grid,
@@ -2036,26 +2030,46 @@ const measureContexts = /* @__PURE__ */ new Map();
 function measureContext(font) {
 	let ctx = measureContexts.get(font);
 	if (ctx == null) {
-		ctx = new OffscreenCanvas(1, 1).getContext("2d");
+		let canvas = typeof OffscreenCanvas != "undefined" ? new OffscreenCanvas(1, 1) : document.createElement("canvas");
+		canvas.width = canvas.height = 1;
+		ctx = canvas.getContext("2d");
 		ctx.font = font;
+		if (measureContexts.size == 16) measureContexts.delete(measureContexts.keys().next().value);
 		measureContexts.set(font, ctx);
 	}
 	return ctx;
 }
+function textWidth(ctx, text) {
+	if (text.indexOf("\n") == -1) return ctx.measureText(text).width;
+	let width = 0;
+	for (let line of text.split("\n")) width = max(width, ctx.measureText(line).width);
+	return width;
+}
 function measureAxisLabels(axis, pxRatio) {
 	let values = axis._values;
-	let prev = axis._labelValues;
-	if (!(values === prev || prev != null && values.length == prev.length && values.every((value, i) => value === prev[i]))) {
-		let ctx = measureContext(axis.font[0]);
-		axis._labelWidths = values.map((value) => {
-			if (value == null) return 0;
-			let text = "" + value;
-			if (text.indexOf("\n") == -1) return ctx.measureText(text).width / pxRatio;
-			let width = 0;
-			for (let line of text.split("\n")) width = max(width, ctx.measureText(line).width);
-			return width / pxRatio;
-		});
+	let font = axis.font[0];
+	if (axis._labelValues === values && axis._widthFont === font) return;
+	let texts = axis._labelTexts ??= [];
+	let widths = axis._labelWidths ??= [];
+	if (axis._widthFont !== font) texts.length = 0;
+	let byText, ctx;
+	for (let i = 0; i < values.length; i++) {
+		let text = values[i] == null ? null : "" + values[i];
+		if (text === texts[i]) continue;
+		if (byText == null) {
+			byText = /* @__PURE__ */ new Map();
+			for (let j = 0; j < texts.length; j++) byText.set(texts[j], widths[j]);
+		}
+		let width = byText.get(text);
+		if (width == null) {
+			width = text == null ? 0 : textWidth(ctx ??= measureContext(font), text) / pxRatio;
+			byText.set(text, width);
+		}
+		texts[i] = text;
+		widths[i] = width;
 	}
+	texts.length = widths.length = values.length;
+	axis._widthFont = font;
 	axis._labelValues = values;
 }
 function rotationCos(rotate) {
@@ -3011,7 +3025,7 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 }
 function pxRatioFont(font, pxRatio) {
 	let fontSize, fontSizeCss;
-	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = +p1) * pxRatio)) + "px");
+	font = font.replace(/(\d*\.?\d+)px\b/, (m, p1) => (fontSize = round((fontSizeCss = +p1) * pxRatio)) + "px");
 	return [
 		font,
 		fontSize,
@@ -3590,7 +3604,7 @@ function uPlot(opts, data, then) {
 			pxRatio$1 = self.pxRatio;
 			axes.forEach((axis) => {
 				syncFontSize(axis, pxRatio$1);
-				axis._labelValues = axis._labelWidths = null;
+				axis._labelTexts = null;
 			});
 		}
 		let prevLeft = plotLftCss;
@@ -3611,7 +3625,7 @@ function uPlot(opts, data, then) {
 			let show = axis.show && (sc._rawY != null ? sc._rawY[0] : sc.min) != null;
 			axesChanged = axesChanged || axis._show != show;
 			axis._show = show;
-			axis._splits = axis._values = null;
+			axis._splits = axis._values = axis._labelValues = null;
 			early = early || show && axis.size === autoAxisSize && axis.side % 2 == 0;
 			if (show && (axis._sizeHint > 0 || axis.label != null && axis.labelSize > 0)) sidesWithAxes[axis.side] = true;
 		});
@@ -3677,6 +3691,7 @@ function uPlot(opts, data, then) {
 			}
 		}
 		axes.forEach((axis, i) => {
+			if (axis._labelValues == null) axis._labelTexts = axis._labelWidths = null;
 			if (axis.show && axis._show) {
 				let side = axis.side;
 				let pos = incrOffset(side, axis._size);
@@ -3884,6 +3899,7 @@ function uPlot(opts, data, then) {
 		fire("delSeries", i);
 	}
 	self.delSeries = delSeries;
+	const axisSizeHint = 50;
 	const sidesWithAxes = [
 		false,
 		false,
@@ -3902,9 +3918,9 @@ function uPlot(opts, data, then) {
 			let cfg = opts.scales?.[axis.scale];
 			sc._axisY = sc._axisY || sc.axis === i && (mode == 2 || axis.scale != xScaleKey) && sc.ori == isVt && sc.distr == 1 && !sc.time && cfg?.auto !== false && sc._policyY != null && sc.from == null && !Object.values(scales).some((s) => s.from == axis.scale) && axis.incrs == null && axis.splits == null && (!isVt || opts.axes?.[i]?.space == null);
 			let isTime = true && sc.time;
-			let autoSize = axis.size == "auto";
-			axis._sizeHint = autoSize || isFn(axis.size) ? yAxisOpts.size : axis.size;
-			axis.size = autoSize ? autoAxisSize : fnOrSelf(axis.size);
+			let size = axis.size ?? (isVt ? autoAxisSize : axisSizeHint);
+			axis._sizeHint = isFn(size) ? axisSizeHint : size;
+			axis.size = fnOrSelf(size);
 			axis.space = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 			if (isArr(axis.incrs)) axis.incrs.forEach((incr) => {
@@ -3921,18 +3937,17 @@ function uPlot(opts, data, then) {
 			axis.filter = fnOrSelf(axis.filter || (sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : (sc.distr == 3 || sc.distr == 4) && sc.log == 2 ? log2AxisValsFilt : retArg1));
 			axis.font = pxRatioFont(axis.font, pxRatio$1);
 			axis.labelFont = pxRatioFont(axis.labelFont, pxRatio$1);
+			axis.labelGap ??= isVt ? 8 : 0;
+			axis.labelSize ??= isVt ? (axis.labelFont[2] ?? 12) + axis.labelGap : 30;
 			axis._size = 0;
 			axis._space = axis._rotate = axis._incrs = axis._found = axis._splits = axis._values = axis._labelValues = axis._labelWidths = null;
 			if (domRoot && axis.dom && axis._sizeHint > 0) axis._el = placeDiv(AXIS, wrap);
 		}
 	}
 	function autoPadSide(side) {
-		let [hasTopAxis, hasRgtAxis, hasBtmAxis, hasLftAxis] = sidesWithAxes;
-		let ori = side % 2;
-		let size = 0;
-		if (ori == 0 && (hasLftAxis || hasRgtAxis)) size = side == 0 && !hasTopAxis || side == 2 && !hasBtmAxis ? round(xAxisOpts.size / 3) : 0;
-		if (ori == 1 && (hasTopAxis || hasBtmAxis)) size = side == 1 && !hasRgtAxis || side == 3 && !hasLftAxis ? round(yAxisOpts.size / 2) : 0;
-		return size;
+		let [top, right, bottom, left] = sidesWithAxes;
+		if (sidesWithAxes[side]) return side % 2 ? 12 : 0;
+		return side % 2 ? top || bottom ? round(axisSizeHint / 2) : 0 : left || right ? round(axisSizeHint / 3) : 0;
 	}
 	const padding = self.padding = (opts.padding || [
 		null,
@@ -5734,6 +5749,7 @@ uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
 uPlot.numDec = numDec;
 uPlot.rangeNum = rangeNum;
+uPlot.autoAxisSize = autoAxisSize;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;
 uPlot.scan = scanScale;

@@ -280,7 +280,7 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 
 function pxRatioFont(font, pxRatio) {
 	let fontSize, fontSizeCss;
-	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = +p1) * pxRatio)) + 'px');
+	font = font.replace(/(\d*\.?\d+)px\b/, (m, p1) => (fontSize = round((fontSizeCss = +p1) * pxRatio)) + 'px');
 	return [font, fontSize, fontSizeCss];
 }
 
@@ -1134,7 +1134,7 @@ export default function uPlot(opts, data, then) {
 			pxRatio = self.pxRatio;
 			axes.forEach(axis => {
 				syncFontSize(axis, pxRatio);
-				axis._labelValues = axis._labelWidths = null;
+				axis._labelTexts = null;
 			});
 		}
 
@@ -1152,7 +1152,7 @@ export default function uPlot(opts, data, then) {
 			let show = axis.show && (sc._rawY != null ? sc._rawY[0] : sc.min) != null;
 			axesChanged = axesChanged || axis._show != show;
 			axis._show = show;
-			axis._splits = axis._values = null;
+			axis._splits = axis._values = axis._labelValues = null;
 			early = early || show && axis.size === autoAxisSize && axis.side % 2 == 0;
 
 			if (show && (axis._sizeHint > 0 || axis.label != null && axis.labelSize > 0))
@@ -1235,6 +1235,10 @@ export default function uPlot(opts, data, then) {
 		}
 
 		axes.forEach((axis, i) => {
+			// A hidden axis or a layout that no longer needs widths has no reusable labels.
+			if (axis._labelValues == null)
+				axis._labelTexts = axis._labelWidths = null;
+
 			if (axis.show && axis._show) {
 				let side = axis.side;
 
@@ -1536,6 +1540,7 @@ export default function uPlot(opts, data, then) {
 
 	self.delSeries = delSeries;
 
+	const axisSizeHint = 50;
 	const sidesWithAxes = [false, false, false, false];
 
 	function initAxis(axis, i) {
@@ -1563,12 +1568,10 @@ export default function uPlot(opts, data, then) {
 			// also set defaults for incrs & values based on axis distr
 			let isTime = FEAT_TIME && sc.time;
 
-			let autoSize = axis.size == 'auto';
-			// Preserve the configured numeric reservation before axis.size is normalized to a function.
-			axis._sizeHint = autoSize || isFn(axis.size) ? yAxisOpts.size : axis.size;
+			let size = axis.size ?? (isVt ? autoAxisSize : axisSizeHint);
+			axis._sizeHint = isFn(size) ? axisSizeHint : size;
 
-
-			axis.size   = autoSize ? autoAxisSize : fnOrSelf(axis.size);
+			axis.size   = fnOrSelf(size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 
@@ -1607,6 +1610,8 @@ export default function uPlot(opts, data, then) {
 
 			axis.font      = pxRatioFont(axis.font, pxRatio);
 			axis.labelFont = pxRatioFont(axis.labelFont, pxRatio);
+			axis.labelGap  ??= isVt ? 8 : 0;
+			axis.labelSize ??= isVt ? (axis.labelFont[2] ?? 12) + axis.labelGap : 30;
 
 			axis._size   = 0;
 
@@ -1628,17 +1633,12 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function autoPadSide(side) {
-		let [hasTopAxis, hasRgtAxis, hasBtmAxis, hasLftAxis] = sidesWithAxes;
+		let [top, right, bottom, left] = sidesWithAxes;
+		if (sidesWithAxes[side])
+			return side % 2 ? 12 : 0;
 
-		let ori = side % 2;
-		let size = 0;
-
-		if (ori == 0 && (hasLftAxis || hasRgtAxis))
-			size = (side == 0 && !hasTopAxis || side == 2 && !hasBtmAxis ? round(xAxisOpts.size / 3) : 0);
-		if (ori == 1 && (hasTopAxis || hasBtmAxis))
-			size = (side == 1 && !hasRgtAxis || side == 3 && !hasLftAxis ? round(yAxisOpts.size / 2) : 0);
-
-		return size;
+		// Leave room for the end tick of a perpendicular axis on an empty side.
+		return side % 2 ? (top || bottom ? round(axisSizeHint / 2) : 0) : (left || right ? round(axisSizeHint / 3) : 0);
 	}
 
 	const padding = self.padding = (opts.padding || [null, null, null, null]).slice();
@@ -4473,6 +4473,7 @@ uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
 uPlot.numDec = numDec;
 uPlot.rangeNum = rangeNum;
+uPlot.autoAxisSize = autoAxisSize;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;
 uPlot.scan = scanScale;

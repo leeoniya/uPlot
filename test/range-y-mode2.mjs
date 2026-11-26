@@ -321,7 +321,7 @@ describe('mode 2 tick-aware ranging', () => {
 				pxRatio: 2,
 				scales: { [horizontal]: { ori: 0 }, [vertical]: { ori: 1 } },
 				axes: ['x', 'y'].map(key => key == horizontal ? {
-					side: 2, size: 'auto', space: 100,
+					side: 2, size: uPlot.autoAxisSize, space: 100,
 					values(u, splits) {
 						events.push(['horizontal-values', u.bbox.width / u.pxRatio]);
 						return splits.map(v => `${v}\nunits`);

@@ -302,11 +302,11 @@ export function barChartPlugin({
 				splits: categorySplits,
 				values: (u, ticks) => ticks.map(value => formatLabel(value)),
 				rotate: () => rotation,
-				size: 'auto',
 			};
-			opts.axes[1] = { ...(horizontal ? { space: 100 } : {}), ...opts.axes[1], scale: numericScale, size: 'auto' };
+			opts.axes[1] = { ...(horizontal ? { space: 100 } : {}), ...opts.axes[1], scale: numericScale };
 			if (horizontal)
 				Object.assign(opts.axes[1], { side: 2, rotate: 0, align: 0 });
+			opts.axes[horizontal ? 1 : 0].size ??= uPlot.autoAxisSize;
 			opts.series ??= [{}, {}];
 			seriesEnd = opts.series.length - ignore.length;
 			if (seriesEnd < 1)

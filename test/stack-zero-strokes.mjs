@@ -17,7 +17,8 @@ async function withPlot(raw, options, check) {
 		width = 400, height = 240, padding = [0, 0, 0, 0],
 	} = options;
 	const u = new uPlot({
-		width, height, pxRatio: 1, padding, axes: [],
+		width, height, pxRatio: 1, padding,
+		axes: [{}, { size: 50 }], // Keep X pixel buckets independent of tick label widths.
 		cursor: { show: false }, legend: { show: false },
 		stack: { groups: [{ series: [1, 2], dir: 1 }] },
 		scales: { x: { time: false, ori, dir, range: xRange }, y: { ori: 1 - ori, range: [0, 12] } },

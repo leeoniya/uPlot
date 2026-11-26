@@ -173,9 +173,9 @@ export function createCharts({data, fields}, target) {
 			},
 			axes: [
 				{},
-				{show: price, size: 'auto', values: priceTicks},
+				{show: price, values: priceTicks},
 				{
-					show: volume, scale: 'volume', side: price ? 1 : 3, size: 'auto',
+					show: volume, scale: 'volume', side: price ? 1 : 3,
 					grid: {show: !price},
 					values: (u, splits) => splits.map(value => value == null ? '' : fmtVolume(value)),
 					...(price ? {space: 20, filter: volumeTicks, ticks: {filter: volumeTicks}} : {}),

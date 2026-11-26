@@ -4,7 +4,6 @@ import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { rangeY } from '../src/rangeY.js';
 import { numAxisSplits } from '../src/opts.js';
-import { autoAxisSize } from '../src/axis.js';
 
 // Keep measurement separate from the drawing canvas, whose mock has no measureText.
 // Cached contexts can outlive a test, so track them for the whole module.
@@ -37,7 +36,8 @@ let plots;
 
 function tickAxis(side, values, extra = {}) {
 	return {
-		scale: side % 2 ? 'y' : 'x', side, size: 'auto',
+		scale: side % 2 ? 'y' : 'x', side,
+		...(side % 2 === 0 ? { size: uPlot.autoAxisSize } : {}),
 		font: testFont, gap: 3, ticks: { show: true, size: 7 },
 		splits: [0, 50, 100], values,
 		...extra,
@@ -80,12 +80,11 @@ function marginPadding(min) {
 }
 
 
-function trackedAxis(events, side, size, extra = {}) {
+function trackedAxis(events, side, extra = {}) {
 	return tickAxis(side, (self, splits, index) => {
 		events.push({ kind: 'values', index });
 		return splits.map(value => value == null ? null : `tick:${value}`);
 	}, {
-		size,
 		space(self, index, min, max, dim) {
 			events.push({ kind: 'space', index, dim });
 			return 40;
@@ -193,7 +192,7 @@ async function earlyRangedChart(events, categories) {
 				});
 				for (const kind of ['space', 'incrs', 'splits', 'filter', 'values', 'rotate', 'size']) {
 					// Horizontal auto sizing is detected by function identity.
-					if (kind === 'size' && axis.side % 2 === 0 && axis.size === autoAxisSize)
+					if (kind === 'size' && axis.side % 2 === 0 && axis.size === uPlot.autoAxisSize)
 						continue;
 					const original = axis[kind];
 					axis[kind] = function(...args) {
@@ -249,28 +248,75 @@ describe('automatic axis size and overflow padding', () => {
 			u.destroy();
 	});
 
-	it('normalizes auto sizing by function identity and retains numeric size hints', async () => {
+	for (const [name, options] of [['omitted', {}], ['null', { size: null }], ['undefined', { size: undefined }]]) {
+		it(`resolves ${name} size by side, including on transposed axes`, async () => {
+			const axis = {
+				font: testFont, gap: 3, ticks: { size: 7 },
+				splits: [0, 50, 100], values: ['short', 'abcdefghijkl', null], ...options,
+			};
+			for (const transposed of [false, true]) {
+				const u = await chart(transposed ? [{ ...axis, side: 1 }, { ...axis, side: 0 }] : [{ ...axis }, { ...axis }], {
+					scales: {
+						x: { time: false, range: [0, 100], ori: transposed ? 1 : 0 },
+						y: { range: [0, 100], ori: transposed ? 0 : 1 },
+					},
+				});
+				const [horizontal, vertical] = transposed ? [u.axes[1], u.axes[0]] : u.axes;
+				assert.equal(vertical.size, uPlot.autoAxisSize);
+				assert.equal(vertical._size, 70, '7 tick + 3 gap + 60 maximum label width');
+				assert.notEqual(horizontal.size, uPlot.autoAxisSize);
+				assert.equal(horizontal._size, 50, 'horizontal size stays fixed unless explicitly automatic');
+				assert.deepEqual([u.bbox.width, u.bbox.height], [330, 250]);
+			}
+		});
+	}
+
+	it('reserves title space by physical side using the CSS font size and actual gap', async () => {
+		for (const [options, gap, size] of [
+			[{}, 8, 20],
+			[{ labelFont: 'italic 17.5px serif', labelGap: 3 }, 3, 20.5],
+			[{ labelFont: 'bold 1em serif', labelGap: 5 }, 5, 17],
+			[{ labelGap: 0 }, 0, 12],
+			[{ labelSize: 0 }, 8, 0],
+		]) {
+			const u = await chart([
+				{ scale: 'x', side: 1, size: 40, label: 'vertical', ...options },
+				{ scale: 'y', side: 0, size: 25, label: 'horizontal', labelFont: 'bold 24px serif' },
+			], {
+				pxRatio: 3,
+				scales: { x: { time: false, ori: 1, range: [0, 100] }, y: { ori: 0, range: [0, 100] } },
+			});
+			assert.deepEqual(u.axes.map(a => [a.labelGap, a.labelSize]), [[gap, size], [0, 30]]);
+			assert.deepEqual(geometry(u).bbox, { left: 0, top: 55, width: 400 - 40 - size, height: 245 });
+		}
+	});
+
+	it('recognizes the public auto size callback and retains explicit sizes and hints', async () => {
 		const u = await chart([
 			tickAxis(2, ['one', 'two', 'three']),
 			tickAxis(3, ['one', 'two', 'three'], { size: 37 }),
 			tickAxis(0, ['one', 'two', 'three'], { size: 24 }),
 			tickAxis(1, ['one', 'two', 'three'], { size: () => 63 }),
 		]);
-		assert.equal(u.axes[0].size, autoAxisSize);
+		assert.equal(typeof uPlot.autoAxisSize, 'function');
+		assert.equal(u.axes[0].size, uPlot.autoAxisSize);
+		assert.equal(u.axes[0]._size, 20, 'horizontal opt-in fits the label height, ticks and gap');
 		assert.deepEqual(u.axes.map(axis => axis._sizeHint), [50, 37, 24, 50]);
 		assert.deepEqual(u.axes.slice(1).map(axis => axis._size), [37, 24, 63]);
 	});
 
-	for (const side of [0, 1, 2, 3]) {
+	const occupiedPadding = [[0, 25, 0, 25], [17, 12, 17, 0], [0, 25, 0, 25], [17, 0, 17, 12]];
+	for (const [side, padding] of occupiedPadding.entries()) {
 		it(`uses size hints for participation and axis DOM on side ${side}, even when measured size is zero`, async () => {
-			for (const [name, size, hint, measuredSize] of [
-				['positive numeric', 12, 12, 12],
-				['numeric zero', 0, 0, 0],
-				['callback returning zero', () => 0, 50, 0],
-				['automatic zero', 'auto', 50, 0],
+			for (const [name, options, hint, measuredSize, values = ['one', 'two', 'three']] of [
+				['positive numeric', { size: 12 }, 12, 12],
+				['numeric zero', { size: 0 }, 0, 0],
+				['callback', { size: () => 21 }, 50, 21],
+				['callback returning zero', { size: () => 0 }, 50, 0],
+				['automatic zero', {}, 50, 0, [null, null, null]],
 			]) {
 				const u = await chart([
-					tickAxis(side, [null, null, null], { size, dom: true, gap: 0, ticks: { show: false } }),
+					tickAxis(side, values, { ...options, dom: true, gap: 0, ticks: { show: false } }),
 					{ show: false },
 				], { padding: [null, null, null, null] });
 				const axis = u.axes[0];
@@ -279,7 +325,7 @@ describe('automatic axis size and overflow padding', () => {
 					assert.equal(axis._sizeHint, hint, name);
 					assert.equal(axis._size, measuredSize, name);
 					assert.deepEqual(axis._splits, [0, 50, 100], `${name} still selects ticks`);
-					assert.deepEqual(u._padding, hint === 0 ? [0, 0, 0, 0] : side % 2 ? [17, 0, 17, 0] : [0, 25, 0, 25], name);
+					assert.deepEqual(u._padding, hint === 0 ? [0, 0, 0, 0] : padding, name);
 					assert.equal(u.root.querySelectorAll('.u-axis').length, hint > 0 ? 1 : 0, name);
 					assert.equal(axis._el, el, 'layout retains the original axis element');
 					if (hint > 0)
@@ -540,6 +586,7 @@ describe('automatic axis size and overflow padding', () => {
 				assert.equal(axis._size, 20);
 				assert.deepEqual(u._padding, [0, 0, 0, 0]);
 				assert.equal(measured(testFont).length, count, 'changed formatted strings do not trigger unused width measurements');
+				assert.equal(axis._labelTexts, null, 'layouts that do not use widths release the previous labels');
 
 				enabled = true;
 				if (mode === 'tuple overflow')
@@ -549,7 +596,7 @@ describe('automatic axis size and overflow padding', () => {
 				const width = text.length * 5;
 				assert.deepEqual(axis._labelWidths, [width, 0, width]);
 				assert.equal(axis._labelValues, labels);
-				assert.deepEqual(measured(testFont).slice(count), [text, text], 'measure current strings, not the skipped or previously measured values');
+				assert.deepEqual(measured(testFont).slice(count), [text], 'measure each distinct current string once');
 				assert.equal(axis._size, mode === 'rotation' ? 10 + width : 20);
 				assert.deepEqual(u._padding, mode === 'rotation' ? [0, 0, 0, 0] : [0, 10 + width / 2, 0, 10 + width / 2]);
 
@@ -607,6 +654,41 @@ describe('automatic axis size and overflow padding', () => {
 		assert.deepEqual(u.axes[1]._labelWidths, []);
 	});
 
+	it('keeps only the current view between layouts, even when a formatter mutates its array', async () => {
+		const labels = ['old', 'two\nlines', 17, null];
+		const u = await chart([{ show: false }, tickAxis(3, () => labels, { splits: [0, 25, 50, 100] })]);
+		const axis = u.axes[1];
+		const widths = axis._labelWidths;
+		const texts = axis._labelTexts;
+		assert.deepEqual(measured(testFont), ['old', 'two', 'lines', '17']);
+
+		for (const [next, expected, misses] of [
+			[['17', 'new', 'two\nlines', 'new'], [10, 15, 25, 15], ['new']],
+			[['17', 'new', '17'], [10, 15, 10], []], // a changed slot reuses text from the unchanged prefix
+			[['17'], [10], []],
+			[['17', 'new'], [10, 15], ['new']],    // shrinking the tail evicted 'new'
+			[['old'], [15], ['old']],  // 'old' fell out of the previous view
+			[[], [], []],
+			[['old'], [15], ['old']],
+		]) {
+			const count = measured(testFont).length;
+			labels.splice(0, labels.length, ...next);
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.equal(axis._labelWidths, widths);
+			assert.equal(axis._labelTexts, texts);
+			assert.deepEqual(widths, expected);
+			assert.deepEqual(texts, next);
+			assert.deepEqual(measured(testFont).slice(count), misses);
+		}
+		axis.show = false;
+		u.redraw(false, true);
+		await Promise.resolve();
+		assert.equal(axis._labelTexts, null);
+		assert.equal(axis._labelValues, null);
+		assert.equal(axis._labelWidths, null);
+	});
+
 	it('reuses widths for fresh elementwise-equal arrays and tracks the latest values reference', async () => {
 		const labels = ['abcd', 'ef\nghijk', null, 123];
 		const u = await chart([{ show: false }, tickAxis(3, () => labels.slice(), { splits: [0, 25, 50, 100] })]);
@@ -627,6 +709,24 @@ describe('automatic axis size and overflow padding', () => {
 			assert.equal(axis._labelValues, axis._values);
 			assert.equal(axis._labelWidths, widths);
 			assert.equal(measured(testFont).length, count);
+		}
+	});
+
+	it('measures default vertical axes without OffscreenCanvas', async () => {
+		const getContext = HTMLCanvasElement.prototype.getContext;
+		const offscreen = globalThis.OffscreenCanvas;
+		delete globalThis.OffscreenCanvas;
+		HTMLCanvasElement.prototype.getContext = function(...args) {
+			return this.width === 1 && this.height === 1 ? new AutosizeCanvas().getContext(...args) : getContext.apply(this, args);
+		};
+		try {
+			const u = await chart([{ show: false }, tickAxis(3, ['abc'])]);
+			assert.deepEqual(measured(testFont), ['abc']);
+			assert.equal(u.axes[1]._size, 25);
+		}
+		finally {
+			globalThis.OffscreenCanvas = offscreen;
+			HTMLCanvasElement.prototype.getContext = getContext;
 		}
 	});
 
@@ -661,7 +761,7 @@ describe('automatic axis size and overflow padding', () => {
 
 	it('invalidates measurements on DPR changes even when the values array is unchanged', async () => {
 		const labels = ['abcd', 'ef\nghijk', null];
-		const u = await chart([tickAxis(2, labels), tickAxis(3, labels)]);
+		const u = await chart([tickAxis(2, labels), tickAxis(3, labels, { label: 'title', labelFont: '17.5px serif' })]);
 		const first = geometry(u);
 		const before = fontContexts.reduce((sum, ctx) => sum + ctx.measurements.length, 0);
 		u.setPxRatio(2);
@@ -769,25 +869,26 @@ describe('automatic axis size and overflow padding', () => {
 		}
 	});
 
-	it('keeps original default and null padding heuristics even with automatic horizontal axes', async () => {
+	it('uses the same side padding for fixed and automatic horizontal axes unless overridden', async () => {
 		const labels = ['x'.repeat(40), null, 'x'.repeat(40)];
-		const fixed = await chart([tickAxis(2, labels, { size: 20 }), { show: false }], { padding: undefined });
-		assert.deepEqual(fixed._padding, [0, 25, 0, 25]);
-		const auto = await chart([tickAxis(2, labels), { show: false }], { padding: undefined });
+		const left = tickAxis(3, labels, { size: 40 });
+		const fixed = await chart([tickAxis(2, labels, { size: 20 }), left], { padding: undefined });
+		assert.deepEqual(fixed._padding, [17, 25, 0, 12]);
+		const auto = await chart([tickAxis(2, labels), left], { padding: undefined });
 		assert.deepEqual(auto._padding, fixed._padding);
-		assert.equal(auto.bbox.left, 25);
-		assert.equal(auto.bbox.width, 350);
-		const override = await chart([tickAxis(2, labels), { show: false }], { padding: [1, 2, 3, 4] });
+		assert.equal(auto.bbox.left, 52);
+		assert.equal(auto.bbox.width, 323);
+		const override = await chart([tickAxis(2, labels), left], { padding: [1, 2, 3, [4, 4]] });
 		assert.deepEqual(override._padding, [1, 2, 3, 4]);
 
-		const nullable = await chart([tickAxis(2, labels), { show: false }], { padding: [null, null, null, null] });
+		const nullable = await chart([tickAxis(2, labels), left], { padding: [null, null, null, null] });
 		assert.deepEqual(nullable._padding, auto._padding);
 		assert.deepEqual(nullable.padding, [null, null, null, null]);
 		nullable.padding[1] = 6;
-		nullable.padding[3] = 8;
+		nullable.padding[3] = 0;
 		nullable.redraw(false, true);
 		await Promise.resolve();
-		assert.deepEqual(nullable._padding, [0, 6, 0, 8]);
+		assert.deepEqual(nullable._padding, [17, 6, 0, 0]);
 		nullable.padding[1] = nullable.padding[3] = null;
 		nullable.redraw(false, true);
 		await Promise.resolve();
@@ -802,14 +903,15 @@ describe('automatic axis size and overflow padding', () => {
 			return 80;
 		};
 		const u = await chart([
-			trackedAxis(events, 2, 'auto', { label: 'bottom', labelSize: 11 }),
-			trackedAxis(events, 3, 30, { label: 'left', labelSize: 9 }),
-			trackedAxis(events, 0, 24),
-			trackedAxis(events, 1, customSize, { label: 'right', labelSize: 13 }),
-			trackedAxis(events, 3, 'auto'),
-		], { width: 600, padding: [5, 7, 9, 11] });
+			trackedAxis(events, 2, { label: 'bottom', labelSize: 11 }),
+			trackedAxis(events, 3, { size: 30, label: 'left' }),
+			trackedAxis(events, 0, { size: 24 }),
+			trackedAxis(events, 1, { size: customSize, label: 'right', labelSize: 13 }),
+			trackedAxis(events, 3),
+		], { width: 600, padding: undefined });
 		function check() {
-			const expectedWidth = u.width - 30 - 9 - 50 - 13 - 50 - 7 - 11;
+			assert.deepEqual(u._padding, [0, 12, 0, 12]);
+			const expectedWidth = u.width - (12 + 30 + 20 + 50) - (12 + 50 + 13);
 			singlePass(events, 5);
 			for (const index of [0, 2]) {
 				assert.equal(events.find(e => e.kind === 'space' && e.index === index).dim, expectedWidth);
@@ -853,7 +955,7 @@ describe('automatic axis size and overflow padding', () => {
 					assert.equal(events.filter(e => e.index === index && e.kind === kind).length, 1, `${kind} axis ${index}`);
 				assert.ok(events.findIndex(e => e.index === index && e.kind === 'values') < events.findIndex(e => e.index === 0 && e.kind === 'size'));
 			}
-			assert.equal(u.axes[1].size, autoAxisSize, 'instrumentation retains horizontal auto function identity');
+			assert.equal(u.axes[1].size, uPlot.autoAxisSize, 'instrumentation retains horizontal auto function identity');
 			const sizes = events.filter(e => e.kind === 'size');
 			assert.deepEqual(sizes.map(e => e.index), [2, 0]);
 			assert.deepEqual(sizes[0].args, [null, 2]);
@@ -940,9 +1042,9 @@ describe('automatic axis size and overflow padding', () => {
 			return 31;
 		};
 		const u = await chart([
-			trackedAxis(events, 2, 'auto'),
-			trackedAxis(events, 3, 20),
-			trackedAxis(events, 2, size),
+			trackedAxis(events, 2),
+			trackedAxis(events, 3, { size: 20 }),
+			trackedAxis(events, 2, { size }),
 		]);
 		singlePass(events, 3);
 		assert.equal(u.axes[2]._size, 31);
@@ -964,9 +1066,9 @@ describe('automatic axis size and overflow padding', () => {
 			return 27;
 		};
 		const u = await chart([
-			trackedAxis(events, 2, reserve),
-			trackedAxis(events, 3, 37),
-			trackedAxis(events, 0, 'auto', { show: false }),
+			trackedAxis(events, 2, { size: reserve }),
+			trackedAxis(events, 3, { size: 37 }),
+			trackedAxis(events, 0, { show: false }),
 		], { padding: [1, 2, 3, 4] });
 		singlePass(events, 2);
 		assert.deepEqual(events.find(e => e.kind === 'size'), { kind: 'size', index: 0, values: null });

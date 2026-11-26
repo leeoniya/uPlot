@@ -1,5 +1,5 @@
 {
-  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">{align:-1, width:1, gap:0, dir:-1, stroke:4}</div><div class=\"u-wrap\" style=\"width: 400px; height: 200px;\"><div class=\"u-under\" style=\"left: 50px; top: 17px; width: 325px; height: 133px;\"></div><canvas width=\"400\" height=\"200\"></canvas><div class=\"u-over\" style=\"left: 50px; top: 17px; width: 325px; height: 133px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 11px; height: 11px; margin-left: -5.5px; margin-top: -5.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 150px; height: 50px; left: 50px; width: 325px;\"></div><div class=\"u-axis\" style=\"left: 0px; width: 50px; top: 17px; height: 133px;\"></div></div><table class=\"u-detail u-legend u-btm u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid #00f; background: rgb(0, 0, 255, 0.1);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">{align:-1, width:1, gap:0, dir:-1, stroke:4}</div><div class=\"u-wrap\" style=\"width: 400px; height: 200px;\"><div class=\"u-under\" style=\"left: 33px; top: 17px; width: 342px; height: 133px;\"></div><canvas width=\"400\" height=\"200\"></canvas><div class=\"u-over\" style=\"left: 33px; top: 17px; width: 342px; height: 133px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 11px; height: 11px; margin-left: -5.5px; margin-top: -5.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 150px; height: 50px; left: 33px; width: 342px;\"></div><div class=\"u-axis\" style=\"left: 12px; width: 21px; top: 17px; height: 133px;\"></div></div><table class=\"u-detail u-legend u-btm u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid #00f; background: rgb(0, 0, 255, 0.1);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
   "width": 400,
   "height": 200,
   "ctxlog": [
@@ -13,7 +13,7 @@
     ],
     ["textAlign", "center"],
     ["textBaseline", "top"],
-    ["fillText", ["0", 375, 165], ["1", 294, 165], ["2", 213, 165], ["3", 131, 165], ["4", 50, 165]],
+    ["fillText", ["0", 375, 165], ["1", 290, 165], ["2", 204, 165], ["3", 119, 165], ["4", 33, 165]],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
@@ -22,59 +22,59 @@
     ["beginPath", []],
     ["moveTo", [375, 150]],
     ["lineTo", [375, 160]],
-    ["moveTo", [294, 150]],
-    ["lineTo", [294, 160]],
-    ["moveTo", [213, 150]],
-    ["lineTo", [213, 160]],
-    ["moveTo", [131, 150]],
-    ["lineTo", [131, 160]],
-    ["moveTo", [50, 150]],
-    ["lineTo", [50, 160]],
+    ["moveTo", [290, 150]],
+    ["lineTo", [290, 160]],
+    ["moveTo", [204, 150]],
+    ["lineTo", [204, 160]],
+    ["moveTo", [119, 150]],
+    ["lineTo", [119, 160]],
+    ["moveTo", [33, 150]],
+    ["lineTo", [33, 160]],
     ["stroke", []],
     ["beginPath", []],
     ["moveTo", [375, 17]],
     ["lineTo", [375, 150]],
-    ["moveTo", [294, 17]],
-    ["lineTo", [294, 150]],
-    ["moveTo", [213, 17]],
-    ["lineTo", [213, 150]],
-    ["moveTo", [131, 17]],
-    ["lineTo", [131, 150]],
-    ["moveTo", [50, 17]],
-    ["lineTo", [50, 150]],
+    ["moveTo", [290, 17]],
+    ["lineTo", [290, 150]],
+    ["moveTo", [204, 17]],
+    ["lineTo", [204, 150]],
+    ["moveTo", [119, 17]],
+    ["lineTo", [119, 150]],
+    ["moveTo", [33, 17]],
+    ["lineTo", [33, 150]],
     ["stroke", []],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
-    ["fillText", ["0", 35, 150], ["1", 35, 120], ["2", 35, 90], ["3", 35, 59], ["4", 35, 29]],
+    ["fillText", ["0", 18, 150], ["1", 18, 120], ["2", 18, 90], ["3", 18, 59], ["4", 18, 29]],
     ["beginPath", []],
-    ["moveTo", [50, 150]],
-    ["lineTo", [40, 150]],
-    ["moveTo", [50, 120]],
-    ["lineTo", [40, 120]],
-    ["moveTo", [50, 90]],
-    ["lineTo", [40, 90]],
-    ["moveTo", [50, 59]],
-    ["lineTo", [40, 59]],
-    ["moveTo", [50, 29]],
-    ["lineTo", [40, 29]],
+    ["moveTo", [33, 150]],
+    ["lineTo", [23, 150]],
+    ["moveTo", [33, 120]],
+    ["lineTo", [23, 120]],
+    ["moveTo", [33, 90]],
+    ["lineTo", [23, 90]],
+    ["moveTo", [33, 59]],
+    ["lineTo", [23, 59]],
+    ["moveTo", [33, 29]],
+    ["lineTo", [23, 29]],
     ["stroke", []],
     ["beginPath", []],
-    ["moveTo", [50, 150]],
+    ["moveTo", [33, 150]],
     ["lineTo", [375, 150]],
-    ["moveTo", [50, 120]],
+    ["moveTo", [33, 120]],
     ["lineTo", [375, 120]],
-    ["moveTo", [50, 90]],
+    ["moveTo", [33, 90]],
     ["lineTo", [375, 90]],
-    ["moveTo", [50, 59]],
+    ["moveTo", [33, 59]],
     ["lineTo", [375, 59]],
-    ["moveTo", [50, 29]],
+    ["moveTo", [33, 29]],
     ["lineTo", [375, 29]],
     ["stroke", []],
     ["strokeStyle", "#00f"],
     ["lineWidth", 4],
     ["fillStyle", "rgb(0,0,255,0.1)"],
     ["save", []],
-    ["clip", [{"log": [["rect", [48, 15, 329, 137]]]}]],
+    ["clip", [{"log": [["rect", [31, 15, 346, 137]]]}]],
     [
       "fill",
       [
@@ -82,10 +82,10 @@
           "log": [
             [
               "rect",
-              [50, 31.090909090909093, 81.25, 116.9090909090909],
-              [131.25, 61.31818181818183, 81.25, 86.68181818181817],
-              [212.5, 91.54545454545455, 81.25, 56.45454545454545],
-              [293.75, 121.77272727272727, 81.25, 26.227272727272734]
+              [33, 31.090909090909093, 85.5, 116.9090909090909],
+              [118.5, 61.31818181818183, 85.5, 86.68181818181817],
+              [204, 91.54545454545455, 85.5, 56.45454545454545],
+              [289.5, 121.77272727272727, 85.5, 26.227272727272734]
             ]
           ]
         }
@@ -98,10 +98,10 @@
           "log": [
             [
               "rect",
-              [50, 31.090909090909093, 81.25, 116.9090909090909],
-              [131.25, 61.31818181818183, 81.25, 86.68181818181817],
-              [212.5, 91.54545454545455, 81.25, 56.45454545454545],
-              [293.75, 121.77272727272727, 81.25, 26.227272727272734]
+              [33, 31.090909090909093, 85.5, 116.9090909090909],
+              [118.5, 61.31818181818183, 85.5, 86.68181818181817],
+              [204, 91.54545454545455, 85.5, 56.45454545454545],
+              [289.5, 121.77272727272727, 85.5, 26.227272727272734]
             ]
           ]
         }
@@ -112,7 +112,7 @@
     ["lineWidth", 2.2],
     ["fillStyle", "#fff"],
     ["save", []],
-    ["clip", [{"log": [["rect", [41.2, 8.2, 342.6, 150.6]]]}]],
+    ["clip", [{"log": [["rect", [24.2, 8.2, 359.6, 150.6]]]}]],
     [
       "fill",
       [
@@ -120,14 +120,14 @@
           "log": [
             ["moveTo", [379.4, 150]],
             ["arc", [375, 150, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [298.4, 120]],
-            ["arc", [294, 120, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [217.4, 90]],
-            ["arc", [213, 90, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [135.4, 59]],
-            ["arc", [131, 59, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [54.4, 29]],
-            ["arc", [50, 29, 4.4, 0, 6.283185307179586]]
+            ["moveTo", [294.4, 120]],
+            ["arc", [290, 120, 4.4, 0, 6.283185307179586]],
+            ["moveTo", [208.4, 90]],
+            ["arc", [204, 90, 4.4, 0, 6.283185307179586]],
+            ["moveTo", [123.4, 59]],
+            ["arc", [119, 59, 4.4, 0, 6.283185307179586]],
+            ["moveTo", [37.4, 29]],
+            ["arc", [33, 29, 4.4, 0, 6.283185307179586]]
           ]
         }
       ]
@@ -139,14 +139,14 @@
           "log": [
             ["moveTo", [379.4, 150]],
             ["arc", [375, 150, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [298.4, 120]],
-            ["arc", [294, 120, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [217.4, 90]],
-            ["arc", [213, 90, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [135.4, 59]],
-            ["arc", [131, 59, 4.4, 0, 6.283185307179586]],
-            ["moveTo", [54.4, 29]],
-            ["arc", [50, 29, 4.4, 0, 6.283185307179586]]
+            ["moveTo", [294.4, 120]],
+            ["arc", [290, 120, 4.4, 0, 6.283185307179586]],
+            ["moveTo", [208.4, 90]],
+            ["arc", [204, 90, 4.4, 0, 6.283185307179586]],
+            ["moveTo", [123.4, 59]],
+            ["arc", [119, 59, 4.4, 0, 6.283185307179586]],
+            ["moveTo", [37.4, 29]],
+            ["arc", [33, 29, 4.4, 0, 6.283185307179586]]
           ]
         }
       ]

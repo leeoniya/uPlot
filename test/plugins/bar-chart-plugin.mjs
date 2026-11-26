@@ -2157,18 +2157,22 @@ describe('barChartPlugin', () => {
 			});
 		}
 
-		it('delegates auto sizing and overflow padding to core and formats raw selected categories', () => {
-			const plugin = barChartPlugin({ inset: 12, maxLabelLength: 5, ellipsis: 'middle' });
-			const u = { data: [['unused'], [1]] };
-			const opts = { axes: [{ font: '16px serif' }, {}], series: [{}, {}] };
-			plugin.opts(u, opts);
-			assert.deepEqual(opts.axes.map(axis => axis.size), ['auto', 'auto']);
-			assert.equal(opts.axes[0].font, '16px serif');
-			assert.deepEqual(opts.padding, [12, [12, Infinity], 12, [12, Infinity]]);
-			assert.deepEqual(opts.axes[0].values(u, ['abcdefghij', 1234567890, false, null, undefined, '']),
-				['ab…ij', '12…90', 'false', '', '', '']);
-			assert.deepEqual(u.data, [['unused'], [1]], 'formatting uses its arguments without changing raw data');
-		});
+		for (const orientation of ['vertical', 'horizontal']) {
+			it(`delegates auto sizing and overflow padding to core and formats raw selected categories (${orientation})`, () => {
+				const plugin = barChartPlugin({ orientation, inset: 12, maxLabelLength: 5, ellipsis: 'middle' });
+				const u = { data: [['unused'], [1]] };
+				const opts = { axes: [{ font: '16px serif' }, {}], series: [{}, {}] };
+				plugin.opts(u, opts);
+				const horizontalIdx = orientation === 'vertical' ? 0 : 1;
+				assert.equal(opts.axes[horizontalIdx].size, uPlot.autoAxisSize);
+				assert.equal(opts.axes[1 - horizontalIdx].size, undefined);
+				assert.equal(opts.axes[0].font, '16px serif');
+				assert.deepEqual(opts.padding, [12, [12, Infinity], 12, [12, Infinity]]);
+				assert.deepEqual(opts.axes[0].values(u, ['abcdefghij', 1234567890, false, null, undefined, '']),
+					['ab…ij', '12…90', 'false', '', '', '']);
+				assert.deepEqual(u.data, [['unused'], [1]], 'formatting uses its arguments without changing raw data');
+			});
+		}
 
 		it('honors chosen increments and returns only integer category positions within range', () => {
 			const plugin = barChartPlugin({ minLabelSpacing: 20 });
@@ -2216,12 +2220,14 @@ describe('barChartPlugin', () => {
 			assertMetrics(u, plugin);
 			assert.ok(!measurements.some(({ text }) => text === data[0].at(-1)), 'unselected labels are not measured');
 			const selected = u.axes[0]._splits.slice();
+			const previous = new Set(u.axes[0]._values);
 			const before = measurements.length;
 			u.setSize({ width: 1400, height: 450 });
 			await Promise.resolve();
 			assertDensity(u, 100);
 			assert.notDeepEqual(u.axes[0]._splits, selected);
-			assert.deepEqual(measurements.slice(before).filter(({ text }) => data[0].includes(text)).map(({ text }) => text), u.axes[0]._values);
+			const newlyVisible = [...new Set(u.axes[0]._values)].filter(text => !previous.has(text));
+			assert.deepEqual(measurements.slice(before).filter(({ text }) => data[0].includes(text)).map(({ text }) => text), newlyVisible);
 			assertMetrics(u, plugin);
 			assertLayout(u);
 			const final = layout(u);
@@ -2657,8 +2663,10 @@ it('rejects invalid method inputs without changing the current settings or redra
 
 	it('attributes shared-context measurements to each plot after resize and DPR changes', async () => {
 		const labels = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta'];
-		const a = mount([labels, [1, 2, 3, 4, 5, 6]], { minLabelSpacing: 100 }, { width: 400 });
-		const b = mount([labels, [1, 2, 3, 4, 5, 6]], { orientation: 'horizontal', minLabelSpacing: 100 }, { height: 400 });
+		// Use a shared test font so a context cached by an unrelated canvas mock cannot hide measurements.
+		const axes = [{ font: '12px bar-measure-test' }, { font: '12px bar-measure-test' }];
+		const a = mount([labels, [1, 2, 3, 4, 5, 6]], { minLabelSpacing: 100 }, { axes, width: 400 });
+		const b = mount([labels, [1, 2, 3, 4, 5, 6]], { orientation: 'horizontal', minLabelSpacing: 100 }, { axes, height: 400 });
 		await Promise.resolve();
 		const context = a.measurements.find(({ text }) => text === 'Alpha').ctx;
 		assert.equal(b.measurements.find(({ text }) => text === 'Alpha').ctx, context);
@@ -2667,10 +2675,15 @@ it('rejects invalid method inputs without changing the current settings or redra
 			for (const [active, other] of [[a, b], [b, a]]) {
 				const before = active.measurements.length;
 				const otherBefore = other.measurements.length;
+				const previous = active.u.axes.map(axis => new Set(active.u.pxRatio === ratio ? axis._values : []));
 				active.u.setSize({ width: 1000, height: 1000 });
 				active.u.setPxRatio(ratio);
 				await Promise.resolve();
-				assert.ok(active.measurements.length > before, 'resize selects new labels; DPR changes invalidate widths');
+				const recent = active.measurements.slice(before).map(({ text }) => text);
+				for (const [idx, axis] of active.u.axes.entries()) {
+					const expected = [...new Set(axis._values)].filter(text => text != null && !previous[idx].has(text));
+					assert.deepEqual(recent.filter(text => labels.includes(text) === (idx === 0)), expected);
+				}
 				assert.equal(other.measurements.length, otherBefore, 'the inactive plot receives no measurements');
 				assertMetrics(active.u, active.plugin);
 			}
@@ -3030,7 +3043,7 @@ it('rejects invalid method inputs without changing the current settings or redra
 		const labels = ['A long first category', 'Middle', 'A long final category'];
 		const data = [labels, [1, 2, 3]];
 		const original = structuredClone(data);
-		const { u, plugin, measurements } = mount(data, { inset: 12 });
+		const { u, plugin, measurements } = mount(data, { inset: 12 }, { axes: [{ font: '12px bar-measure-test' }, {}] });
 		await Promise.resolve();
 		for (const ratio of [1, 2]) {
 			u.setPxRatio(ratio);

@@ -534,7 +534,7 @@ let opts = {
 }
 ```
 
-- `size` & `labelSize` represent the perpendicular dimensions assigned to `values` and `labels` DOM elements, respectively. In the above example, the full width of this y-axis would be 30 + 50; for an x-axis, it would be its height.
+- `size` reserves space for the ticks, gap, and tick labels. `labelSize` reserves separate space for the axis title. In this example, the fixed axis width is 50 + 30 = 80 CSS pixels.
 - `gap` is the space between axis ticks and `values`.
 
 Customizing the tick/grid spacing, value formatting and granularity is somewhat more involved:
@@ -593,43 +593,67 @@ let opts = {
 ---
 #### Axis Layout & Padding
 
-Layout uses a fixed order without convergence cycles. The order depends on whether a horizontal axis uses `size: 'auto'`.
+The physical side determines the axis defaults, not the scale key. An X axis on the left or right is vertical. All sizes in the table are in CSS pixels.
+
+| Axis side | Default `size` | Default `labelGap` | Default `labelSize` |
+| --- | --- | --- | --- |
+| Right (`1`) or left (`3`) | Fits the ticks, gap, and selected tick labels | 8 | Font size in `labelFont` + `labelGap` |
+| Top (`0`) or bottom (`2`) | 50 | 0 | 30 |
+
+If you omit `size` or set it to `null` or `undefined`, uPlot uses the default for that side.
+
+For a fixed width or height on any side, set `size` to a number in CSS pixels. For automatic height on a horizontal axis, set `size: uPlot.autoAxisSize`.
+
+**Axis titles:** Without a title (`axis.label`), uPlot reserves no title space. With a title, `labelGap` sets the gap between the title and the tick labels. `labelSize` reserves space for both the title and this gap, separate from `size`.
+
+The default vertical `labelSize` uses the nominal `px` size in `labelFont`, not the tick font (`axis.font`). If uPlot cannot read a `px` size from `labelFont`, it uses 12 CSS pixels for the font size. It then adds the actual `labelGap`. For example, `labelFont: "16px Arial"` and `labelGap: 0` give a default `labelSize` of 16. An explicit `labelSize` sets the total title space. A value of `0` reserves none.
+
+To keep the former vertical title spacing, set `labelGap: 0` and `labelSize: 30`.
+
+Layout selects horizontal ticks once. Only a visible, active horizontal axis with `size: uPlot.autoAxisSize` triggers early selection. A wrapper around the function does not trigger it.
 
 **Without automatic horizontal axes:**
 
 1. uPlot reserves fixed horizontal axis heights and calls each horizontal `axis.size` callback once with `(self, null, axisIdx)`. These heights must include space for rotation, truncation, and multiline labels.
 2. uPlot resolves baseline padding. The horizontal axis heights and baseline padding determine the final plot height.
 3. uPlot selects and formats vertical ticks at that height, then determines vertical axis widths.
-4. uPlot selects and formats horizontal ticks at the provisional width, which includes the final vertical axis widths and baseline padding.
+4. uPlot selects and formats horizontal ticks at the width that remains after it subtracts the final vertical axis widths and baseline padding.
 
 **With automatic horizontal axes:**
 
-1. uPlot resolves baseline padding and reserves provisional vertical axis widths. Numeric sizes reserve their specified widths. Automatic sizes and size callbacks reserve 50 CSS pixels per axis. These reservations also include axis titles.
+1. uPlot resolves baseline padding and reserves provisional vertical axis widths. Numeric sizes reserve their specified widths. Automatic sizes and custom size callbacks reserve 50 CSS pixels per axis at this step. uPlot adds the space for each axis title separately.
 2. uPlot selects and formats ticks for all horizontal axes at the provisional plot width.
 3. uPlot sizes all horizontal axes to determine the final plot height. Horizontal `axis.size` callbacks run once and still receive `(self, null, axisIdx)`, not the selected labels.
 4. uPlot selects and formats vertical ticks at that height, then determines vertical axis widths.
 
 In both orders, each vertical `axis.size` callback receives `(self, values, axisIdx)` once. `values` contains the formatted labels, or `[]` if there are no ticks. Vertical size callbacks never receive `null`.
 
-**Automatic sizing:** `size: 'auto'` reserves the tick size, gap, and selected label extent without extra axis padding. Automatic sizing and tuple overflow support only default alignment (`align: 0`) and `alignTo: 1`. They support unrotated multiline labels and single-line rotations on bottom axes. Numeric sizes and size callbacks retain custom alignment support.
+**Automatic sizing:** The automatic axis size includes the visible ticks, gap, and selected tick labels. Outer padding is separate. The width of a vertical axis can change as its tick labels change. To keep the former fixed width, set `size: 50` on the vertical axis.
 
-**Padding:** Each side accepts only a number, `null`, or a `[min, max]` tuple, in top/right/bottom/left order. Numbers reserve fixed padding in CSS pixels. The default `null` retains the existing heuristic, including with automatic axis sizes.
+Automatic sizing and tuple overflow support only `align: 0` and `alignTo: 1`. They support unrotated multiline labels and rotated single-line labels on bottom axes. Fixed sizes and custom size callbacks support other alignments.
 
-Before tick selection, baseline padding reserves numeric values, heuristic values for `null`, or tuple minima. Top and bottom tuples use only their minima. After horizontal label selection and formatting, uPlot resolves left and right tuple overflow together with the final vertical axis widths. It credits existing axis space and limits the padding to each tuple's bounds. A finite maximum can allow label clipping.
+**Outer padding:** `padding` lists the sides in top, right, bottom, left order. If you omit `padding`, all four sides use their defaults. A `null` entry uses the default for that side. uPlot applies default padding once per physical side, not once per axis.
+
+| Side | Default for an occupied side | Default for an empty side |
+| --- | --- | --- |
+| Left or right | 12 CSS pixels | With an occupied top or bottom: 25 CSS pixels. Otherwise: 0. |
+| Top or bottom (unchanged) | 0 | With an occupied left or right side: 17 CSS pixels. Otherwise: 0. |
+
+A number sets fixed padding for that side. For example, `padding: [null, null, null, 0]` removes the left padding but keeps the other defaults.
+
+A `[min, max]` tuple replaces the default for that side. Before tick selection, uPlot reserves `min`. Top and bottom tuples use only `min`. On the left and right, uPlot increases padding for horizontal tick labels that extend beyond the final axis widths. The padding stays within the tuple bounds. A finite maximum can allow label clipping.
 
 Top and bottom padding stay fixed after ticks. Overflow does not select or format ticks again, so final horizontal spacing can be smaller than the `axis.space` target.
 
 Plot dimensions must remain positive after axis sizes and padding. Behavior for nonpositive plot dimensions is undefined.
 
-**Side participation:** `sidesWithAxes` derives from axis configuration at initialization, not from size callback results. Hidden or inactive axes do not participate. For visible, active axes:
+**Occupied sides:** Only visible, active axes count. For each such axis:
 
-- A positive numeric `size`, `size: 'auto'`, or a size callback makes the axis participate.
-- A size callback still makes the axis participate if it returns zero.
-- Numeric `size: 0` does not make the axis participate, unless an axis title has nonzero `labelSize`.
+- The default size for either orientation counts toward its side, as does any positive numeric `size`.
+- A size callback counts regardless of its return value. This includes `uPlot.autoAxisSize`.
+- With `size: 0`, only a title with a positive `labelSize` makes the axis count.
 
-A zero return from a size callback no longer changes side occupancy for default padding.
-
-For a grid-only axis, use numeric `size: 0` without an axis title reservation. To hide the axis fully, including its grid, use `show: false`. For other padding behavior, set explicit numbers or bounds.
+For a grid-only axis, use numeric `size: 0` without an axis title reservation. To hide the axis and its grid, use `show: false`.
 
 **Compatibility:** `axis.size` no longer receives `cycleNum`. Its signature remains `(self, values: Axis.StaticValues | null, axisIdx) => number` because horizontal callbacks receive `null`. `Axis.StaticValues` can contain strings, numbers, and null entries.
 
@@ -647,7 +671,11 @@ Identical `setSize()` or `setPxRatio()` requests are no-ops. For an explicit axi
 
 Multiple size changes before a commit produce one `setSize` notification, even if the final size matches the previous layout.
 
-**Canvas state:** uPlot invalidates its canvas state cache only when it resets the canvas backing store. Callbacks must preserve `self.ctx` state. The demo saves and restores the canvas state around font changes to preserve the font cache.
+**Canvas state:** uPlot invalidates its canvas state cache only when it resets the canvas backing store. Callbacks must preserve `self.ctx` state. Automatic sizing measures label widths on a separate canvas. Unrotated horizontal sizing needs only the label height.
+
+Each axis reuses widths for text from its previous layout, even if the tick positions change. It discards widths for labels that leave the view. A font or pixel-ratio change invalidates the widths. Updates that skip axis layout do not measure tick labels.
+
+See [axis sizing performance](investigations/axis-size-performance.md) for zoom and data update measurements.
 
 #### Cache Retention
 

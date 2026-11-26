@@ -52,7 +52,7 @@ barChartPlugin({
 ```
 
 The data format stays `[categoryLabels, firstSeriesValues, secondSeriesValues, ...]`. Categories run from top to bottom on the left X axis.
-The numeric Y axis runs horizontally along the bottom. Core selects its ticks before final category measurements determine the left axis width.
+The numeric Y axis runs along the bottom. With automatic bottom axis sizing, uPlot selects its ticks before it measures the left axis width.
 Horizontal bars do not support label rotation. A nonzero `labelRotation` or `_controls.setLabelRotation()` argument throws `RangeError`.
 
 ## Grouping and stacking
@@ -193,8 +193,8 @@ The selected increment determines which category ticks, grid lines, and labels a
 The spacing applies along plot width for vertical bars and plot height for horizontal bars.
 
 With an automatic horizontal axis, core selects all horizontal ticks once from a provisional plot width, then sizes all horizontal axes together.
-The provisional width reserves explicit numeric vertical axis widths. Automatic vertical axes and vertical axes with size callbacks reserve 50px each.
-These reservations also include axis titles. Core keeps the selected horizontal ticks through the rest of layout.
+For each vertical axis, uPlot reserves the fixed width or 50 CSS pixels for automatic sizing and custom callbacks.
+It adds the space for each axis title separately. Core keeps the selected horizontal ticks through the rest of layout.
 
 The final center-to-center spacing can differ from the requested spacing.
 Resize, data, and group-layout changes recalculate the selection. Hover does not recalculate the selection.
@@ -341,14 +341,16 @@ Its scale defaults to `axis: 1` and soft-zero limits. Explicit scale options ove
 The plugin sets the orientation of each numeric scale used by bars and preserves its other options, including custom ranges.
 Tick-aware `axis: 1` ranging uses plot height for vertical numeric axes and available plot width for horizontal numeric axes.
 Horizontal numeric axes default to `space: 100` CSS pixels. `opts.axes[1].space` can override this target spacing.
-Fixed ranges and custom range functions retain standard ranging. Automatic label fitting is not implemented.
+Fixed ranges and custom range functions retain standard ranging. Axis sizing does not adjust tick spacing to prevent label overlap.
 The plugin does not support general top-axis or custom-alignment layouts.
 
-Both primary axes use `size: 'auto'`. Core reserves the tick size, gap, and selected label extent without extra axis padding.
+Both primary axes fit their tick labels by default. The vertical axis uses the uPlot default, even for the category X scale on horizontal bars.
+The plugin uses `size: uPlot.autoAxisSize` on the bottom axis. A number or a custom size callback overrides the default on either axis.
+For example, `axes: [{}, { size: 80 }]` reserves 80 CSS pixels for the numeric axis, apart from its title.
 
 Automatic sizing and tuple overflow support default alignment (`align: 0`) and `alignTo: 1` only.
 They support unrotated multiline labels. Rotation support is limited to single-line labels on bottom axes.
-Explicit numeric sizes and size callbacks retain custom alignment support. The renderer still draws rotated multiline labels, but automatic layout does not support them.
+Fixed sizes and custom size callbacks support other alignments. The renderer still draws rotated multiline labels, but automatic layout does not support them.
 
 The plugin uses `padding: [inset, [inset, Infinity], inset, [inset, Infinity]]` in top/right/bottom/left order.
 Each side accepts only a number, `null`, or `[min, max]` bounds.
@@ -357,21 +359,21 @@ Top and bottom tuples use only their minima. A finite maximum can allow label cl
 
 After horizontal label selection and formatting, core resolves left and right tuple overflow together with the final axis widths.
 It credits existing axis space. Overflow adjustment does not select or format ticks again.
-Default or `null` padding retains the original heuristic, even with `size: 'auto'`. Overflow adjustment requires explicit `[min, max]` tuples.
+Automatic axis sizing does not change the default padding. Only explicit `[min, max]` tuples adjust padding for label overflow.
 
 Padding callbacks and public padding phases no longer exist. There is no tick-aware custom padding callback, `sizePadding` option, or public overflow helper.
 
 For migration, replace padding callbacks with numbers or `[min, max]` bounds.
 
-Core shares one `OffscreenCanvas` context per font across axes and charts. The plugin requires browser support for `OffscreenCanvas`.
+Core shares measurement contexts across axes and charts. It keeps up to 16 fonts. The bar plugin also uses `OffscreenCanvas`.
 Each context keeps its font. Measurement does not change the chart context.
 Unrotated horizontal autosizing reads the current label strings for height without measurement of their widths.
 Core measures widths only for vertical or rotated sizing, or automatic padding.
 Core retains the measured array in `axis._labelValues` and a `number[]` of widths in `axis._labelWidths`.
-If layout skips measurement, `axis._labelValues` can differ from the current formatted array.
+If the layout does not need widths, core releases the width cache.
 Each width is the maximum unrotated line width for that label. Hidden `null` labels have width zero.
 
 Unchanged selected labels reuse their measurements after truncation changes, rotation, and resize.
-If a resize selects different labels, core measures them when layout needs their widths.
+If a resize changes the selection, core measures only labels absent from the previous layout.
 Core invalidates measurements centrally when the pixel ratio changes.
 Runtime changes to axis fonts, `lineGap`, or sides are unsupported. In-place mutation of the formatted values array is also unsupported.

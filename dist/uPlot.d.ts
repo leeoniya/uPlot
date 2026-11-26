@@ -166,6 +166,9 @@ declare class uPlot {
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
 	static rangeAsinh(min: number, max: number, base: uPlot.Scale.LogBase, fullMags: boolean): uPlot.Range.MinMax;
 
+	/** Built-in axis size callback. Pass it directly as axis.size to fit horizontal tick labels. */
+	static autoAxisSize: uPlot.Axis.SizeCallback;
+
 	/** English numeric formatter with comma grouping and up to three fraction digits; independent of browser locale */
 	static fmtNum(val: number): string;
 
@@ -318,9 +321,12 @@ declare namespace uPlot {
 	export type PaddingLimits = [min: number, max: number];
 
 	/**
-	 * Total padding in CSS pixels: a fixed number, automatic limits, or null for the default heuristic.
-	 * Tuple minima reserve space before tick selection. Core then resolves horizontal overflow from the selected labels and final axis sizes.
-	 * Default or null padding retains the original heuristic, even with size: 'auto'. Overflow adjustment requires explicit [min, max] tuples.
+	 * Outer padding in CSS pixels. A null entry uses the default for that physical side.
+	 * Each occupied left or right side gets 12 pixels, regardless of the number of axes on that side.
+	 * If the top or bottom is occupied, an empty left or right side gets 25 pixels. Otherwise it gets 0.
+	 * Top and bottom defaults are unchanged. Each occupied top or bottom side gets 0.
+	 * If the left or right is occupied, an empty top or bottom side gets 17 pixels. Otherwise it gets 0.
+	 * A number sets fixed padding, including 0. A [min, max] tuple uses its own limits instead of the side default.
 	 */
 	export type PaddingSide = number | PaddingLimits | null;
 
@@ -516,7 +522,7 @@ declare namespace uPlot {
 
 		axes?: Axis[];
 
-		/** padding per side, in CSS pixels (can prevent cross-axis labels at the plotting area limits from being chopped off) */
+		/** Outer padding in top, right, bottom, left order. Omission is equivalent to [null, null, null, null]. */
 		padding?: Padding;
 
 		select?: Select;
@@ -1280,24 +1286,30 @@ declare namespace uPlot {
 		/** must return an array of same length as splits, e.g. via splits.map() */
 		export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
+		/** Horizontal axes pass null for values. Vertical axes pass formatted tick labels or an empty array. */
+		export type SizeCallback = (self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number;
+
 		/**
-		 * Axis size in CSS pixels. 'auto' fits ticks, gap, and selected labels. Axis titles use labelSize separately.
+		 * Axis size in CSS pixels, excluding the title (labelSize). A number specifies a fixed size.
+		 * An omitted, null, or undefined size selects the default for the side, regardless of the scale key.
+		 * Left and right axes (sides 3 and 1) fit the ticks, gap, and selected labels. Top and bottom axes (sides 0 and 2) reserve 50 CSS pixels.
+		 * To fit a horizontal axis, set size to uPlot.autoAxisSize itself.
 		 * Automatic sizing supports default alignment (align: 0) and alignTo: 1 only.
 		 * It supports unrotated multiline labels. Rotation support is limited to single-line labels on bottom axes.
-		 * Explicit numeric sizes and size callbacks retain support for custom alignment and drawn rotated multiline labels.
+		 * Fixed sizes and custom size callbacks support other alignments and rotated multiline labels.
 		 * Unrotated horizontal autosizing reads current label strings for height without measurement of their widths.
 		 * Core measures widths only for vertical or rotated sizing, or automatic padding. Unchanged labels reuse cached widths.
 		 *
 		 * With an automatic horizontal axis, layout selects all horizontal ticks once from a provisional plot width, then sizes all horizontal axes together.
 		 * This width reserves explicit numeric vertical axis widths. Automatic vertical axes and vertical axes with size callbacks reserve 50px each.
-		 * These reservations also include axis titles.
+		 * Layout adds space for each axis title separately.
 		 * Selected horizontal ticks remain unchanged through final layout.
 		 *
 		 * Early tick callbacks cannot depend on a newly calculated provisional height or fixed horizontal axis allocations.
 		 * Horizontal size callbacks run after this tick selection and still receive null values. Vertical size callbacks receive formatted values.
-		 * Without an automatic horizontal axis, layout order does not change.
+		 * Without an automatic horizontal axis, layout determines vertical axis widths before it selects horizontal ticks.
 		 */
-		export type Size = number | 'auto' | ((self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number);
+		export type Size = number | SizeCallback | null | undefined;
 
 		export type Space = number | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, plotDim: number) => number);
 
@@ -1386,7 +1398,7 @@ declare namespace uPlot {
 		/** side of chart - 0: top, 1: rgt, 2: btm, 3: lft */
 		side?: Axis.Side;
 
-		/** horizontal axis height or vertical axis width in CSS pixels for values, gap & ticks, excluding the axis label */
+		/** Width for a vertical axis (automatic by default) or height for a horizontal axis (default: 50 CSS pixels). Excludes the title. */
 		size?: Axis.Size;
 
 		/** gap between axis values and axis baseline (or ticks, if enabled) in CSS pixels */
@@ -1401,16 +1413,21 @@ declare namespace uPlot {
 		/** color of axis label & values */
 		stroke?: Axis.Stroke;
 
-		/** axis label text */
+		/** Axis title. Without a title, the axis reserves no title space. */
 		label?: Axis.Label;
 
-		/** height of x axis label or width of y axis label in CSS pixels alloted for label text + labelGap */
+		/**
+		 * Total space for the axis title, including labelGap, in CSS pixels. An explicit size overrides the default, including 0.
+		 * On the left (3) or right (1), the default is the nominal px size in labelFont plus the actual labelGap.
+		 * If uPlot cannot read a px size from labelFont, it uses 12 for the font size. It does not use axis.font.
+		 * On the top (0) or bottom (2), the default is 30.
+		 */
 		labelSize?: number;
 
-		/** gap between label baseline and tick values in CSS pixels */
+		/** Gap between the title and tick labels in CSS pixels. The default is 8 on the left or right and 0 on the top or bottom. An explicit 0 removes the gap. */
 		labelGap?: number;
 
-		/** font used for axis label */
+		/** Font for the axis title. */
 		labelFont?: CanvasRenderingContext2D['font'];
 
 		/** target grid & tick spacing in CSS pixels. automatic horizontal sizing uses provisional width, so final spacing can be smaller.

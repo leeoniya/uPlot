@@ -570,11 +570,11 @@ describe('single-pass layout', () => {
 			});
 			try {
 				await Promise.resolve();
-				assert.deepEqual(u._padding, [pad, 0, pad, 0], 'axis size callbacks participate even when their measured width is zero');
+				assert.deepEqual(u._padding, [pad, 0, pad, 12], 'axis size callbacks participate even when their measured width is zero');
 				assert.equal(u.axes[0]._size, 0, 'numeric size: 0 reserves no height');
 				assert.ok(u.axes[0]._splits.length > 0, 'numeric size: 0 still selects ticks');
 				assert.equal(u.axes[1]._size, measured);
-				assert.deepEqual(cssBox(u), { left: measured, top: pad, width: 600 - measured, height: 400 - 2 * pad });
+				assert.deepEqual(cssBox(u), { left: 12 + measured, top: pad, width: 600 - 12 - measured, height: 400 - 2 * pad });
 				const vertical = events.filter(event => event.i == 1 && ['space', 'splits', 'values', 'measure'].includes(event.type));
 				assert.deepEqual(vertical.map(event => event.type), ['space', 'splits', 'values', 'measure']);
 				assert.ok(vertical.every(event => event.bbox.height == 400 - 2 * pad),
@@ -598,7 +598,8 @@ describe('single-pass layout', () => {
 			{ name: 'hidden callback with label', extra: { show: false, label: 'axis', labelSize: 12 }, participates: false },
 			{ name: 'inactive callback with label', extra: { scale: 'inactive', label: 'axis', labelSize: 12 }, participates: false },
 		];
-		for (const side of [0, 1, 2, 3]) {
+		const occupiedPadding = [[0, 25, 0, 25], [17, 12, 17, 0], [0, 25, 0, 25], [17, 0, 17, 12]];
+		for (const [side, padding] of occupiedPadding.entries()) {
 			for (const { name, extra, participates } of cases) {
 				const events = [];
 				const { u } = plot({
@@ -609,7 +610,7 @@ describe('single-pass layout', () => {
 				try {
 					await Promise.resolve();
 					for (let pass = 0; pass < 2; pass++) {
-						const expected = !participates ? [0, 0, 0, 0] : side % 2 ? [17, 0, 17, 0] : [0, 25, 0, 25];
+						const expected = participates ? padding : [0, 0, 0, 0];
 						assert.deepEqual(u._padding, expected, `${name}, side ${side}, pass ${pass}`);
 						if (extra.show === false || extra.scale == 'inactive')
 							assert.deepEqual(events, [], 'hidden/inactive axes have no callbacks');
@@ -1151,8 +1152,9 @@ describe('single-pass layout', () => {
 			try {
 				await Promise.resolve();
 				const initial = geometry(u);
-				assert.deepEqual(cssBox(u), { left: 70, top: 17, width: 451, height: 353 });
-				assert.deepEqual(u._padding, [17, 0, 0, 0]);
+				assert.deepEqual(cssBox(u), { left: 82, top: 17, width: 427, height: 353 });
+				assert.deepEqual(u._padding, [17, 12, 0, 12], 'the two right axes share one 12px allowance');
+				assert.equal(events.find(event => event.i == 0 && event.type == 'space').dim, 427);
 				const otherAxis = { size: u.axes[3]._size, pos: u.axes[3]._pos };
 				const otherRange = [u.scales.other.min, u.scales.other.max];
 				for (const firstRestored of [1, 2]) {
@@ -1176,10 +1178,8 @@ describe('single-pass layout', () => {
 							if (!active)
 								assert.ok(!events.some(event => event.i == i), 'disabled axes have no sizing or tick callbacks');
 						}
-						assert.deepEqual(cssBox(u), active
-							? { left: 70, top: 17, width: 451, height: 353 }
-							: { left: 25, top: 17, width: 544, height: 353 }, 'layout removes both axis widths and titles');
-						assert.deepEqual(u._padding, active ? [17, 0, 0, 0] : [17, 0, 0, 25], 'default padding reflects remaining active sides');
+						assert.deepEqual(u.bbox, active ? initial.bbox : { left: 25, top: 17, width: 532, height: 353 }, 'layout removes both axis widths and titles');
+						assert.deepEqual(u._padding, active ? initial.padding : [17, 12, 0, 25], 'default padding reflects remaining active sides');
 						assert.equal(u.axes[0]._show, true);
 						assert.equal(u.axes[3]._show, true);
 						assert.equal(u.axes[3]._el.classList.contains('u-off'), false);

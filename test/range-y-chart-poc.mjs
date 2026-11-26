@@ -403,9 +403,9 @@ describe('axis-ranging chart POC: one Y scale', () => {
 	}
 
 	it('switches automatic endpoint ticks to ordinary ticks for identical explicit bounds without resizing', async () => {
-		const plotData = [[0, 1], [-13, 87]];
-		const { u, scans } = makePlot({ height: 20, plotData });
-		const { u: control } = makePlot({ height: 20, plotData, optIn: false });
+		const options = { height: 20, plotData: [[0, 1], [-13, 87]], axes: [{ show: false }, { size: 50 }] };
+		const { u, scans } = makePlot(options);
+		const { u: control } = makePlot({ ...options, optIn: false });
 		try {
 			await tick();
 			assertRange(u, -13, 87, 20);
