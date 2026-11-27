@@ -10,7 +10,7 @@ function frames() {
 	return [{ schema: { meta: { type: 'other' } } }, {
 		schema: { meta: { type: 'heatmap-cells' }, fields: [
 			{ name: 'count' }, { name: 'yMax' }, { name: 'xMax', config: { interval: 60000 } }, { name: 'yMin' },
-		] }, data: { values: [[17.25, 3.5, 29.75, 4.25], [8, 2, 8, 2], [240000, 60000, 60000, 120000], [4, 1, 4, 1]] },
+		] }, data: { values: [[3.5, 29.75, 4.25, 17.25], [2, 8, 2, 8], [60000, 60000, 120000, 240000], [1, 4, 1, 4]] },
 	}];
 }
 
@@ -45,8 +45,8 @@ describe('Perspective heatmap cells demo', () => {
 	it('uses sparse columnar input, centers the intervals, and keeps original counts', () => {
 		const input = frames(), snapshot = structuredClone(input);
 		const c = prepareData(input);
-		assert.deepEqual(c.columns[timeColumn], [210000, 30000, 30000, 90000]);
-		assert.deepEqual(c.columns[bucketColumn], [2.5, .5, 2.5, .5]);
+		assert.deepEqual(c.columns[timeColumn], [30000, 30000, 90000, 210000]);
+		assert.deepEqual(c.columns[bucketColumn], [.5, 2.5, .5, 2.5]);
 		assert.equal(c.columns[countColumn], input[1].data.values[0]);
 		assert.deepEqual([c.nx, c.ny], [4, 3]);
 		assert.deepEqual(input, snapshot);
@@ -54,20 +54,8 @@ describe('Perspective heatmap cells demo', () => {
 
 	it('does not collapse missing positions when converting exponential bins to log2 centers', () => {
 		const c = prepareData(frames());
-		assert.equal(c.columns[bucketColumn][0] - c.columns[bucketColumn][1], 2);
-		assert.equal(c.columns[timeColumn][0] - c.columns[timeColumn][3], 120000);
-	});
-
-	it('rejects unsafe grid dimensions before starting a worker', async () => {
-		const f = frames();
-		f[1].schema.fields[2].config.interval = 1;
-		f[1].data.values[2][0] = 2 ** 52;
-		const root = rootFor(), api = mock(root);
-		try {
-			await assert.rejects(createDemo(root, f, api), /Invalid heatmap grid dimensions/);
-			assert.deepEqual(api.calls, []);
-		}
-		finally { root.remove(); }
+		assert.equal(c.columns[bucketColumn][1] - c.columns[bucketColumn][0], 2);
+		assert.equal(c.columns[timeColumn][3] - c.columns[timeColumn][2], 120000);
 	});
 
 	it('maps every generated bucket to its numeric log2 center without creating missing cells', () => {

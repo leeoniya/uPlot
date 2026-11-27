@@ -18,7 +18,7 @@ function plugin(options = {}) {
 	return heatmapPlugin({ fields: ['xMin', 'yMax', 'count'], colors, ...options });
 }
 
-async function mount(t, instance, showAxes = false, opts = {}) {
+async function mount(t, instance, showAxes = false, opts = {}, initialData = null) {
 	const host = document.createElement('div');
 	document.body.append(host);
 	t.after(() => host.remove());
@@ -27,7 +27,7 @@ async function mount(t, instance, showAxes = false, opts = {}) {
 		axes: [{ show: showAxes }, { show: showAxes }], legend: { show: false },
 		scales: { x: { time: false, range: exactRange }, y: { range: exactRange } },
 		series: [{}, {}], plugins: [instance], ...opts,
-	}, null, host);
+	}, initialData, host);
 	t.after(() => u.destroy());
 	await nextPaint();
 
@@ -54,7 +54,7 @@ async function mount(t, instance, showAxes = false, opts = {}) {
 		assert.equal(root.querySelector('canvas'), canvas);
 	}
 
-	return { u, apply, calls };
+	return { u, apply };
 }
 
 function checkScales(u, x, y) {
@@ -99,13 +99,16 @@ function checkCells(u, cells, hovered) {
 }
 
 describe('heatmapPlugin.setFrame on a mounted mode-2 plot', () => {
-	it('uses full anchor extents, then infers fresh steps and bounds from each replacement', async t => {
+	it('infers constructor geometry, applies explicit geometry to the same data, then infers fresh bounds', async t => {
+		const raw = data([0, 0, 4], [6, 8, 4], [8, 2, 8]);
 		const domains = [], hovered = [];
 		const { u, apply } = await mount(t, plugin({
 			onColorScale: ({ min, max }) => domains.push([min, max]),
 			onHover: (u, id) => hovered.push(id),
-		}));
-		const raw = data([0, 0, 4], [6, 8, 4], [8, 2, 8]);
+		}), false, {}, raw);
+		assert.equal(u.data, raw);
+		checkScales(u, [0, 8], [2, 8]);
+		assert.equal(hover(u, 3, 5), 0);
 		await apply({ data: raw, grid: { x: { step: 2, extent: [-2, 6] }, y: { step: 1, extent: [3, 9] } } });
 		checkScales(u, [-2, 8], [2, 9]);
 		assert.deepEqual(domains.at(-1), [2, 8]);
@@ -124,57 +127,10 @@ describe('heatmapPlugin.setFrame on a mounted mode-2 plot', () => {
 		checkCells(u, [[20, 21, 15, 18, 'navy'], [20, 21, 18, 21, 'gold'], [21, 22, 12, 15, 'navy']], hovered);
 	});
 
-	it('rejects invalid frame metadata before changing the displayed data or prepared grid', async t => {
-		const hovered = [], domains = [];
-		const instance = plugin({ onHover: (u, id) => hovered.push(id), onColorScale: ({ min, max }) => domains.push([min, max]) });
-		const { u, apply, calls } = await mount(t, instance);
-		const raw = data([1], [10], [7]);
-		await apply({ data: raw, grid: { x: { step: 3 }, y: { step: 2 } } });
-		for (const grid of [{ x: {}, y: { step: 1 } }, { x: { step: 1 }, y: {} }, { x: { step: 1 }, y: { step: 0 } },
-			{ x: { step: 1, extent: [0, 2 ** 24] }, y: { step: 1 } }]) {
-			assert.throws(() => instance.setFrame({ data: data([30], [40], [99]), grid }));
-		}
-		u.redraw();
-		await nextPaint();
-		assert.equal(calls.length, 1, 'invalid frames never reach setData');
-		assert.equal(u.data, raw);
-		checkScales(u, [1, 4], [8, 10]);
-		assert.deepEqual(domains.at(-1), [7, 7]);
-		checkCells(u, [[1, 4, 8, 10, 'navy']], hovered);
-	});
-
-	it('bounds the occupied grid and its writes independently of the resolved extents', async t => {
+	it('paints two occupied cells on opposite corners of a 4096 × 4096 grid', async t => {
 		const instance = plugin({ fields: ['xMax', 'yMin', 'yMax', 'count'] });
 		const { u, apply } = await mount(t, instance);
-		const xs = [1, 1, 1, 2], lo = [0, 1, 2, 0], hi = [1, 2, 3, 1];
-		const frame = { data: [null, [xs, lo, hi, [1, 2, 3, 4]]], grid: { x: { step: 1, extent: [1, 2] }, y: { extent: [0, 3] } } };
-		await apply(frame);
-		assert.equal(hover(u, .5, 1.5), 1);
 
-		// Canonical columns are borrowed. Change them after resolution to test the renderer,
-		// regardless of which anchors the resolver reads. Use impossible array lengths for
-		// axis overflows so a regression cannot allocate millions of entries during the test.
-		function rejected(changes, message) {
-			const previous = changes.map(([col, i]) => col[i]);
-			changes.forEach(([col, i, value]) => { col[i] = value; });
-			assert.throws(() => instance.hooks.setData(u), { name: 'RangeError', message });
-			changes.forEach(([col, i], j) => { col[i] = previous[j]; });
-		}
-		rejected([[xs, 3, 2 ** 32]], /column count/);
-		rejected([[hi, 2, 2 ** 32]], /grid size/);
-		rejected([[xs, 3, 4096], [hi, 2, 4097]], /grid size/);
-		// Interior outliers leave both axis sizes small. Guard before filling missing
-		// columns or writing the exact edges of a newly seen row.
-		for (const outlier of [-1, 3, NaN]) {
-			rejected([[xs, 1, outlier]], /X bucket index/);
-			rejected([[lo, 1, outlier]], /Y bucket index/);
-		}
-		u.redraw();
-		await nextPaint();
-		assert.deepEqual(painted(u), [], 'a redraw cannot traverse a partial grid');
-		assert.equal(hover(u, .5, 1.5), null);
-
-		// Exactly 2**24 bins are allowed. Recovery needs no new plugin or dense cell array.
 		await apply({ data: [null, [[1, 4096], [0, 4095], [1, 4096], [1, 2]]], grid: { x: { step: 1 } } });
 		assert.equal(painted(u).length, 2);
 	});
@@ -221,12 +177,32 @@ describe('heatmapPlugin.setFrame on a mounted mode-2 plot', () => {
 		assert.ok(u.axes.every(axis => axis._values.every(label => label !== '' && Number.isFinite(+label))));
 	});
 
+	for (const [x, y, xs, ys] of [
+		['xMin', 'y', [10, 10, 14], [0, 4, 2]],
+		['x', 'yMin', [11, 11, 15], [-1, 3, 1]],
+		['x', 'yMax', [11, 11, 15], [1, 5, 3]],
+	]) {
+		it(`paints and hits sparse typed ${x}/${y} cells in source order`, async t => {
+			const hovered = [];
+			const {u, apply} = await mount(t, plugin({fields: ['count', y, x], onHover: (u, i) => hovered.push(i)}));
+			const raw = [null, [Float32Array.of(.5, 2, .5), Int8Array.from(ys), Uint8Array.from(xs)]];
+			await apply({data: raw, grid: {x: {step: 2}}});
+			checkScales(u, [10, 16], [-1, 5]);
+			checkCells(u, [[10, 12, -1, 1, 'navy'], [10, 12, 3, 5, 'gold'], [14, 16, 1, 3, 'navy']], hovered);
+			assert.equal(hover(u, 11, 2), null, 'missing row');
+			assert.equal(hover(u, 13, 2), null, 'missing column');
+		});
+	}
+
 	it('draws and hovers reordered source columns without treating counts as coordinates', async t => {
 		const hovered = [], domains = [];
-		const {u, apply} = await mount(t, plugin({
-			fields: ['count', 'yMax', 'xMin', 'yMin'],
+		const fields = ['count', 'yMax', 'xMin', 'yMin'];
+		const instance = plugin({fields,
 			onHover: (u, i) => hovered.push(i), onColorScale: ({min, max}) => domains.push([min, max]),
-		}));
+		});
+		fields.splice(0, fields.length, 'x', 'y', 'count'); // Reuse the caller's list after compilation.
+		const {u, apply} = await mount(t, instance);
+		assert.deepEqual(u.data[1], [[], [], [], []], 'null initial data uses the compiled schema');
 		await apply({data: [null, [[9, 2], [6, 4], [20, 24], [4, 2]]]});
 		checkScales(u, [20, 28], [2, 6]);
 		assert.deepEqual(domains.at(-1), [2, 9]);
@@ -244,16 +220,16 @@ describe('heatmapPlugin.setFrame on a mounted mode-2 plot', () => {
 		assert.deepEqual(u.axes[0]._splits, [0, 2]);
 		assert.deepEqual(u.axes[0]._values, ['x0', 'x2']);
 	});
+});
 
-	it('rejects setFrame before init and after destroy', async t => {
-		const instance = plugin();
-		const frame = { data: data([0], [1], [1]), grid: { x: { step: 1 }, y: { step: 1 } } };
-		assert.equal(typeof instance.setFrame, 'function');
-		assert.throws(() => instance.setFrame(frame));
-		const { u, apply, calls } = await mount(t, instance);
-		await apply(frame);
-		u.destroy();
-		assert.throws(() => instance.setFrame(frame));
-		assert.equal(calls.length, 1, 'destroyed plot does not receive the frame');
+it('uses the legacy linear X and log Y defaults with a null plugin grid', async t => {
+	const hovered = [];
+	const legacy = heatmapPlugin({xSize: 2, grid: null, colors, onHover: (u, i) => hovered.push(i)});
+	assert.equal(legacy.setFrame, undefined);
+	const {u} = await mount(t, legacy, false, {
+		data: [null, [[], [], [], []]], scales: {x: {time: false, range: [0, 4]}, y: {range: [1, 8]}},
 	});
+	u.setData([null, [[2, 4, 4], [4, 1, 2], [8, 2, 4], [1, 1, 4]]]);
+	await nextPaint();
+	checkCells(u, [[0, 2, 4, 8, 'navy'], [2, 4, 1, 2, 'navy'], [2, 4, 2, 4, 'gold']], hovered);
 });

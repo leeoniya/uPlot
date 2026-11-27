@@ -14,7 +14,7 @@ function sparseFrames() {
 		{ schema: { meta: { type: 'heatmap-cells' }, fields: [
 			{ name: 'count' }, { name: 'yMax' }, { name: 'xMax', config: { interval: 60000 } },
 			{ name: 'yLayout' }, { name: 'yMin' },
-		] }, data: { values: [[17, 3, 29], [8, 2, 8], [180000, 60000, 60000], [0, 0, 0], [4, 1, 4]] } },
+		] }, data: { values: [[3, 29, 17], [2, 8, 8], [60000, 60000, 180000], [0, 0, 0], [1, 4, 4]] } },
 	];
 }
 
@@ -216,13 +216,13 @@ describe('ECharts GL heatmap cells demo', () => {
 		assert.deepEqual(frames, snapshot);
 	});
 
-	it('looks up reordered sparse cells by raw source index without sorting or filling the data', () => {
+	it('looks up ordered sparse cells by raw source index without filling gaps', () => {
 		const prepared = prepareData(sparseFrames()), snapshot = prepared.data.slice();
-		assert.deepEqual(prepared.data, new Float64Array([2, 2, 17, 0, 0, 3, 0, 2, 29]));
+		assert.deepEqual(prepared.data, new Float64Array([0, 0, 3, 0, 2, 29, 2, 2, 17]));
 		const lookup = createCellLookup(prepared.data, 3);
 		for (let x = 0; x < 3; x++) {
 			for (let y = 0; y < 3; y++) {
-				const expected = x == 2 && y == 2 ? 0 : x == 0 && y == 0 ? 1 : x == 0 && y == 2 ? 2 : undefined;
+				const expected = x == 0 && y == 0 ? 0 : x == 0 && y == 2 ? 1 : x == 2 && y == 2 ? 2 : undefined;
 				assert.equal(lookup(x, y), expected, `cell ${x},${y}`);
 			}
 		}
@@ -233,9 +233,9 @@ describe('ECharts GL heatmap cells demo', () => {
 		const empty = createCellLookup(new Float64Array(), 3);
 		assert.equal(empty(0, 0), undefined);
 		assert.equal(createCellLookup(new Float64Array(), 0)(0, 0), undefined);
-		const lookup = createCellLookup(new Float64Array([1, 0, 10, 0, 2, 20]), 3);
-		assert.equal(lookup(1, 0), 0);
-		assert.equal(lookup(0, 2), 1);
+		const lookup = createCellLookup(new Float64Array([0, 2, 20, 1, 0, 10]), 3);
+		assert.equal(lookup(0, 2), 0);
+		assert.equal(lookup(1, 0), 1);
 		for (const point of [[0, 3], [1, -1], [-1, 5], [0, 0], [999, 0], [undefined, 0], [0, undefined]])
 			assert.equal(lookup(...point), undefined, `invalid or missing ${point}`);
 		for (const value of [-1, .5, NaN, Infinity, -Infinity, '0', null]) {
@@ -244,9 +244,9 @@ describe('ECharts GL heatmap cells demo', () => {
 		}
 	});
 
-	it('uses logarithmic source reads for binary lookup after indexing', () => {
+	it('searches sorted sparse triples with no setup scan and logarithmic reads for hits and gaps', () => {
 		const count = 4096, data = new Float64Array(count * 3);
-		for (let i = 0; i < count; i++) data.set([(count - i - 1) * 2, 0, i + 1], i * 3);
+		for (let i = 0; i < count; i++) data.set([i * 2, 0, i + 1], i * 3);
 		let reads = 0;
 		const tracked = new Proxy(data, {
 			get(target, key) {
@@ -255,9 +255,10 @@ describe('ECharts GL heatmap cells demo', () => {
 			},
 		});
 		const lookup = createCellLookup(tracked, 3);
+		assert.equal(reads, 0);
 		for (const x of [0, 1, 2048, 4095, 8190, 8191]) {
 			reads = 0;
-			assert.equal(lookup(x, 0), x % 2 == 0 ? count - 1 - x / 2 : undefined);
+			assert.equal(lookup(x, 0), x % 2 == 0 ? x / 2 : undefined);
 			assert.ok(reads <= 2 * (Math.ceil(Math.log2(count)) + 2), `${reads} reads for x=${x}`);
 		}
 	});

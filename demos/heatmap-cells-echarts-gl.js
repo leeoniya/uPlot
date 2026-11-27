@@ -4,21 +4,20 @@ const palette = colorPieces(0, 1, 'linear').map(piece => piece.color);
 const grid = { left: 85, right: 20, top: 30, bottom: 40, outerBoundsMode: 'none' };
 
 export function createCellLookup(data, rowCount) {
-	// Sort source indices, not cells: hover retains raw row IDs with only four extra bytes per cell.
-	const order = Uint32Array.from({ length: data.length / 3 }, (_, i) => i);
+	const count = data.length / 3;
 	const key = i => data[i * 3] * rowCount + data[i * 3 + 1];
-	order.sort((a, b) => key(a) - key(b));
+
 	return (x, y) => {
 		if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || y >= rowCount)
 			return;
 		const target = x * rowCount + y;
-		let lo = 0, hi = order.length;
+		let lo = 0, hi = count;
 		while (lo < hi) {
 			const mid = (lo + hi) >>> 1;
-			if (key(order[mid]) < target) lo = mid + 1;
+			if (key(mid) < target) lo = mid + 1;
 			else hi = mid;
 		}
-		return lo < order.length && key(order[lo]) == target ? order[lo] : undefined;
+		return lo < count && key(lo) == target ? lo : undefined;
 	};
 }
 

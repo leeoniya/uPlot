@@ -1,17 +1,15 @@
 // Approximate log colors with at most one index of error inside the count domain.
 // See docs/investigations/heatmap-color-luts.md for the grid bound and measurements.
 export function logApproxLut(colorCount, minCount, maxCount) {
-	if (!Number.isInteger(colorCount) || colorCount < 11 || colorCount > 32 ||
-		!Number.isFinite(minCount) || !Number.isFinite(maxCount) || minCount > maxCount)
-		return null;
+	if (colorCount < 11 || colorCount > 32) return null;
 
 	if (minCount == maxCount)
 		return { intervals: 0, directory: new Uint8Array(1), blocks: new Uint8Array(64), lookup: () => 0 };
 
-	if (minCount <= 0) return null;
 	const countRange = maxCount - minCount;
 	const logRange = Math.log(maxCount) - Math.log(minCount);
-	if (!(logRange > 0)) return null;
+	// Distinct endpoints can have the same rounded log. Use the direct log1p scale then.
+	if (logRange == 0) return null;
 	const step = logRange / (colorCount - 1);
 	const ratioRange = Math.expm1(logRange);
 	const minGap = Math.exp(step / 2) * Math.expm1(step) / ratioRange;
@@ -19,7 +17,7 @@ export function logApproxLut(colorCount, minCount, maxCount) {
 	// No bin can span two transitions. Four subdivisions reduce error frequency.
 	const intervals = 4 * base * Math.max(1, Math.ceil(1 / minGap / base));
 	// Bound the directory allocation and keep bitwise lookup indices in range.
-	if (!Number.isFinite(intervals) || intervals > 2 ** 24) return null;
+	if (intervals > 2 ** 24) return null;
 	const countScale = intervals / countRange;
 	if (!Number.isFinite(countScale)) return null;
 	const transitions = Array.from({ length: colorCount - 1 }, (_, i) =>
@@ -81,17 +79,8 @@ function rootTable(scale, last) {
 	return rootTables.cbrt = { last, intervals, ...sharedBlocks(last + 1, intervals, transitions) };
 }
 
-function countToGrid(min, max, intervals) {
-	const range = max - min;
-	if (!Number.isFinite(range)) {
-		const halfRange = max / 2 - min / 2;
-		return count => (count / 2 - min / 2) / halfRange * intervals;
-	}
-	const factor = intervals / range;
-	return Number.isFinite(factor) ? count => (count - min) * factor : count => (count - min) / range * intervals;
-}
-
-function scaledLookup(min, max, last, factor, table) {
+function gridLookup(min, max, last, table) {
+	const factor = (table?.intervals ?? last) / (max - min);
 	if (table == null)
 		return count => count <= min ? 0 : count >= max ? last : Math.round((count - min) * factor);
 	if (table.colors != null) {
@@ -101,28 +90,8 @@ function scaledLookup(min, max, last, factor, table) {
 	return sharedLookup(min, max, last, factor, table.directory, table.blocks);
 }
 
-function gridLookup(min, max, last, table) {
-	const intervals = table?.intervals ?? last;
-	const range = max - min;
-	const factor = intervals / range;
-	if (Number.isFinite(range) && Number.isFinite(factor))
-		return scaledLookup(min, max, last, factor, table);
-
-	// Only extreme domains need a separate conversion to grid coordinates.
-	const grid = countToGrid(min, max, intervals);
-	const lookup = scaledLookup(0, intervals, last, 1, table);
-	return count => lookup(grid(count));
-}
 
 export function prepareHeatmapColorScale(palette, scale, min, max) {
-	if (!Array.isArray(palette) || palette.length == 0) throw new TypeError('Expected a nonempty color array');
-	for (const color of palette) {
-		if (typeof color != 'string' || !color.trim()) throw new TypeError('Expected a CSS color string');
-	}
-	if (!['linear', 'sqrt', 'cbrt', 'log'].includes(scale)) throw new RangeError(`Unknown color scale: ${scale}`);
-	if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) throw new RangeError('Expected a finite ordered color domain');
-	if (scale == 'log' && min != max && min <= 0) throw new RangeError('Nonconstant log domains must be positive');
-
 	const last = palette.length - 1;
 	if (min == max || last == 0) return { lookup: () => 0, stops: [[0, palette[0]], [1, palette[0]]] };
 
@@ -132,21 +101,13 @@ export function prepareHeatmapColorScale(palette, scale, min, max) {
 		offset = t => t;
 	}
 	else if (scale == 'log') {
-		// log1p preserves narrow domains. Test the largest relative count before using it.
-		let logRatio;
-		if (Number.isFinite((max - min) / min))
-			logRatio = count => Math.log1p((count - min) / min);
-		else {
-			const logMin = Math.log(min);
-			logRatio = count => Math.log(count) - logMin;
-		}
+		// log1p preserves narrow domains. The relative span and expm1(range) must be finite.
+		const logRatio = count => Math.log1p((count - min) / min);
 		const range = logRatio(max);
 		lookup = logApproxLut(last + 1, min, max)?.lookup ??
 			(count => count <= min ? 0 : count >= max ? last : Math.round(logRatio(count) / range * last));
 		const span = Math.expm1(range);
-		// For overflowing ratios, divide numerator and denominator by exp(range).
-		offset = Number.isFinite(span) ? t => Math.expm1(range * t) / span :
-			t => Math.exp(range * (t - 1)) * -Math.expm1(-range * t);
+		offset = t => Math.expm1(range * t) / span;
 	}
 	else {
 		offset = scale == 'sqrt' ? t => t * t : t => t * t * t;
@@ -156,13 +117,13 @@ export function prepareHeatmapColorScale(palette, scale, min, max) {
 		}
 		else {
 			const root = scale == 'sqrt' ? Math.sqrt : Math.cbrt;
-			const normalize = countToGrid(min, max, 1);
-			lookup = count => count <= min ? 0 : count >= max ? last : Math.round(root(normalize(count)) * last);
+			const factor = 1 / (max - min);
+			lookup = count => count <= min ? 0 : count >= max ? last : Math.round(root((count - min) * factor) * last);
 		}
 	}
 
 	return {
 		lookup,
-		stops: palette.map((color, i) => [i == 0 ? 0 : i == last ? 1 : offset(i / last), color]),
+		stops: palette.map((color, i) => [offset(i / last), color]),
 	};
 }

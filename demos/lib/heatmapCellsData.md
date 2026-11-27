@@ -14,15 +14,17 @@ const sparseX = generateHeatmapCells({ xGapProbability: 0.02 });
 
 ## Options
 
+The generator trusts the caller to supply numeric options within these limits. It does not validate them.
+
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `seed` | `1` | Unsigned 32-bit integer for the local random generator. |
 | `columns` | `2569` | Number of time intervals. Must be a positive safe integer. |
 | `interval` | `1200000` | Width of each interval in milliseconds (20 minutes). Must be a positive safe integer. |
 | `start` | `Date.UTC(2026, 7, 20, 10, 20)` | Left boundary of the first interval, in milliseconds since the Unix epoch. |
-| `xGapProbability` | `0` | Probability of omission for each interior time column, from `0` to `1`. |
+| `xGapProbability` | `0` | Probability of omission for each interior time column, from `0` to `1` inclusive. |
 
-The start and final timestamps must be safe integers. Invalid option values throw an error.
+Both `start` and the final timestamp (`start + columns * interval`) must be safe integers in milliseconds.
 
 The defaults produce 251,281 populated cells across about 35.7 days. Other seeds produce approximately 250,000 cells, not an exact cell count.
 
@@ -40,7 +42,7 @@ The five arrays in `data.values` correspond to these fields:
 - `count`: positive fractional rate, in multiples of `1 / 285`, rather than an integer event count.
 - `yLayout`: zero for each cell.
 
-The interval width also appears in the `xMax` field configuration. Cells follow timestamp order, then latency order. Empty cells do not appear in the arrays.
+The interval width also appears in the `xMax` field configuration. Cells follow timestamp order, then latency order. The native-library comparison demos require this order for their time bounds and hover lookups. Empty cells do not appear in the arrays.
 
 ## Missing time columns
 

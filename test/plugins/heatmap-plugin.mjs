@@ -439,10 +439,6 @@ describe('heatmapPlugin uniform grid', () => {
 		}
 	}
 
-	it('rejects negative and nonfinite cell gaps', () => {
-		for (const cellGap of [-1, NaN, Infinity, -Infinity, '1', null])
-			assert.throws(() => heatmapPlugin({ xSize: 1, cellGap }), /cellGap must be a finite, nonnegative number/);
-	});
 
 	it('reads a dynamic cellGap once per draw, not during hover', () => {
 		const f = fixture({ nx: 1, ny: 2, y: { distr: 1 }, ySize: 1, include: () => true });
@@ -466,8 +462,7 @@ describe('heatmapPlugin uniform grid', () => {
 				pixelQuery(u, .9, 99.5, 0);
 				assert.equal(calls, before + 1);
 			}
-			gap = NaN;
-			assert.throws(() => plugin.hooks.draw(u), /cellGap must be a finite, nonnegative number/);
+
 		}
 		finally { plugin.hooks.destroy(); }
 	});
@@ -1428,6 +1423,17 @@ describe('heatmapPlugin uniform grid', () => {
 			});
 		}
 
+		it('uses the first color when all counts fall beyond the fixed endpoint', async () => {
+			const f = countsFixture([1, 16, 49, 100]);
+			for (const domain of [[null, .5], [128, null]]) {
+				let info;
+				const u = await mount(f, 1, { colors, colorDomain: domain, onColorScale: value => { info = value; } });
+				const bound = domain[0] ?? domain[1];
+				assert.deepEqual([info.min, info.max, info.stops], [bound, bound, [[0, 'navy'], [1, 'navy']]]);
+				checkDraw(u, f, colors, [0, 0, 0, 0]);
+			}
+		});
+
 		it('resolves colors and colorScale getters on redraw without rescanning on redraw or zoom', async () => {
 			const f = countsFixture([1, 4, 13, 41, 65]), events = [], getterPlots = new Set();
 			let palette = ['black'], scale = 'linear';
@@ -1477,23 +1483,6 @@ describe('heatmapPlugin uniform grid', () => {
 			close(stops.map(stop => stop[0]), palette.map((_, i) => (16 ** (i / 16) - 1) / 15));
 			checkDraw(u, f, palette, [0, 4, 8, 12, 16]);
 		});
-
-		for (const [label, options] of [
-			['empty colors', { colors: [] }],
-			['non-string color entry', { colors: ['red', 42] }],
-			['empty colors from getter', { colors: () => [] }],
-						['unknown color scale', { colors, colorScale: 'power' }],
-						['reversed color domain', { colors, colorDomain: [2, 1] }],
-		]) {
-			it(`rejects ${label}`, () => {
-				const f = countsFixture([1]);
-				assert.throws(() => {
-					const { u, plugin } = isolated({ xSize: f.xSize, grid: f.grid, ...options }, f.data);
-					plugin.hooks.setData(u);
-					plugin.hooks.draw(u);
-				});
-			});
-		}
 	});
 
 	it('merges consecutive rows by palette index, not count or CSS color, without crossing gaps or columns', () => {

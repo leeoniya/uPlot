@@ -274,31 +274,6 @@ describe('procedural heatmap cells data', function() {
 		between(defaults.columns - new Set(sparse.times).size, 20, 100, 'Missing columns');
 	});
 
-	for (const [name, invalid] of [
-		['xGapProbability', [-1, 1.01, NaN, Infinity, -Infinity, '0.5', null, true]],
-		['seed', [-1, 0x100000000, 1.5, NaN, Infinity, -Infinity, '1', null, true]],
-		['columns', [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity, -Infinity, '2', null, true]],
-		['interval', [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity, -Infinity, '1000', null, true]],
-		['start', [0.5, Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1, NaN, Infinity, -Infinity, '0', null, true]],
-	]) {
-		it(`rejects invalid ${name} values`, {timeout: 15000}, () => {
-			for (const value of invalid) {
-				assert.throws(() => generateHeatmapCells({columns: 2, [name]: value}),
-					{ name: 'RangeError', message: new RegExp(name) }, `${name}=${String(value)}`);
-			}
-		});
-	}
-
-	it('rejects an unsafe final timestamp before allocating or generating cells', {timeout: 15000}, () => {
-		for (const options of [
-			{columns: 1, interval: 1, start: Number.MAX_SAFE_INTEGER},
-			{columns: 2, interval: Number.MAX_SAFE_INTEGER, start: 0},
-			{columns: Number.MAX_SAFE_INTEGER, interval: 2, start: 0},
-		])
-			assert.throws(() => generateHeatmapCells(options), {name: 'RangeError', message: /timestamp/});
-		assert.throws(() => generateHeatmapCells(null), TypeError);
-	});
-
 	// Broad envelopes protect the visual character, not a particular mixture fit or seed snapshot.
 	it('keeps the default size near 250k cells with a sparse, low-rate distribution', {timeout: 15000}, () => {
 		between(cells.counts.length, 225000, 275000, 'Default cell count');

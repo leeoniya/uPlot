@@ -1,4 +1,4 @@
-import { readCells, gridShape, checkGridIndex } from './heatmap-cells-compare.js';
+import { readCells, gridShape } from './heatmap-cells-compare.js';
 
 // Spectral, cool to warm; matches the uPlot demo's default 24-color palette.
 const stops = ['5e4fa2', '3288bd', '66c2a5', 'abdda4', 'e6f598', 'ffffbf', 'fee08b', 'fdae61', 'f46d43', 'd53e4f', '9e0142'];
@@ -14,14 +14,11 @@ export function prepareData(frames) {
 	const cells = readCells(frames);
 	const { times, yMin, yMax, counts, xSize, minTime, minY, minCount, maxCount } = cells;
 	const { nx, ny, factor, logStep } = gridShape(cells);
-	if (Math.max(nx, ny) > 0xffffffff)
-		throw new RangeError('Heatmap category array is too large');
 	// Flat x/y/count triples avoid per-cell arrays and ECharts' ordinary-array option clones.
 	const data = new Float64Array(times.length * 3);
 	for (let i = 0; i < times.length; i++) {
 		const x = Math.round((times[i] - minTime) / xSize);
 		const y = Math.round(Math.log(yMin[i] / minY) / logStep);
-		checkGridIndex(x, y, nx, ny);
 		const offset = i * 3;
 		data[offset] = x;
 		data[offset + 1] = y;

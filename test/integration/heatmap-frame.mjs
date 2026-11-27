@@ -10,14 +10,7 @@ const unit = {x: {step: 1}, y: {step: 1}};
 const empty = [[], [], []];
 
 describe('compileHeatmapFields', () => {
-	it('rejects invalid static schemas before there is a frame', () => {
-		for (const fields of [null, 'x', [], ['x', 'y'], ['x', 'count'], ['y', 'count'],
-			['x', 'x', 'y', 'count'], ['X', 'y', 'count'], ['x', 'y', 'count', 'z'], ['x', 'y', 'count', ,],
-			['x', 'xMin', 'y', 'count'], ['xMax', 'x', 'y', 'count'], ['xMin', 'yMin', 'y', 'yMax', 'count']])
-			assert.throws(() => compileHeatmapFields(fields), TypeError);
-	});
-
-	it('compiles field order once; repeated calls do not carry geometry or a failed update forward', () => {
+	it('compiles field order once without carrying geometry between frames', () => {
 		const fields = ['count', 'yMax', 'xMin'];
 		const resolve = compileHeatmapFields(fields);
 		fields.reverse();
@@ -29,7 +22,7 @@ describe('compileHeatmapFields', () => {
 		assert.equal(a.cells[2], input[1]);
 		assert.equal(a.cells[3], input[0]);
 		assert.equal(a.xSize, 2);
-		assert.throws(() => resolve(frame([[1], [5], [10]], {x: {step: 0}, y: {step: 1}})));
+
 		assert.equal(resolve(frame([[1], [5], [10]], unit)).xSize, 1);
 		assert.deepEqual(resolve(f), a);
 	});
@@ -89,6 +82,28 @@ describe('linear heatmap frame geometry', () => {
 		}
 	});
 
+	it('resolves the same sparse typed cells from each independent X and Y anchor combination', () => {
+		const src = {
+			xMin: Uint8Array.of(246, 246, 252, 255), x: Float32Array.of(247.5, 247.5, 253.5, 256.5),
+			xMax: Uint16Array.of(249, 249, 255, 258),
+			yMin: Int8Array.of(-2, 2, 0, -2), y: Int8Array.of(-1, 3, 1, -1), yMax: Int8Array.of(0, 4, 2, 0),
+			count: Float32Array.of(.5, 2, 3, .25),
+		};
+		const edges = ['xMax', 'yMin', 'yMax', 'count'];
+		const variants = axis => [[axis], [axis + 'Min'], [axis + 'Max'], [axis + 'Min', axis + 'Max']];
+		for (const x of variants('x')) {
+			for (const y of variants('y')) {
+				const fields = ['count', ...y, ...x];
+				const a = compileHeatmapFields(fields)(frame(fields.map(f => src[f])));
+				assert.deepEqual([a.xSize, a.ySize, a.xRange, a.yRange], [3, 2, [246, 258], [-2, 4]], fields.join(', '));
+				edges.forEach((f, i) => {
+					if (fields.includes(f)) assert.equal(a.cells[i], src[f]);
+					else assert.deepEqual([...a.cells[i]], [...src[f]], `${fields.join(', ')} → ${f}`);
+				});
+			}
+		}
+	});
+
 	it('infers a single cell from paired bounds, without adding an extra bin to the extent', () => {
 		const resolve = compileHeatmapFields(['yMin', 'xMin', 'count', 'yMax', 'xMax']);
 		const columns = [[1], [-5], [8], [4], [-3]];
@@ -128,7 +143,8 @@ describe('linear heatmap frame geometry', () => {
 		assert.deepEqual(b.xRange, [2, 4]);
 		assert.deepEqual(b.yRange, [-0.5, 0.5]);
 		assert.deepEqual(centers(frame(empty, {x: {categories: []}})).xRange, [null, null]);
-		assert.throws(() => centers(frame(empty, {x: {extent: [0, 1]}})));
+		const max = 2 ** 24;
+		assert.deepEqual(centers(frame(empty, {x: {step: 1, extent: [0, max - 1]}})).xRange, [-0.5, max - 0.5]);
 	});
 
 	it('accepts fractional aggregateHeatmap bounds and does not copy them', () => {
@@ -160,14 +176,12 @@ describe('linear heatmap frame geometry', () => {
 		}
 	});
 
-	it('validates a rounded measured width against distant unoccupied extent edges', () => {
+	it('refines a rounded measured width using distant unoccupied extent edges', () => {
 		const resolve = compileHeatmapFields(['xMin', 'xMax', 'yMin', 'yMax', 'count']);
 		const grid = {x: {extent: [1e12, 1e12 + 100]}};
 		const a = resolve(frame([[1e12], [1e12 + 0.1], [0], [1], [2]], grid));
 		assert.equal(a.xSize, 0.1);
 		assert.deepEqual(a.xRange, grid.x.extent);
-		// A distant edge must not loosen the precision of a width measured near zero.
-		assert.throws(() => resolve(frame([[0], [1], [0], [1], [2]], {x: {extent: [0, 1e6 + 0.001]}})));
 	});
 
 	it('accepts single-precision inputs and double-precision roundoff near epoch-sized coordinates', () => {
@@ -175,49 +189,5 @@ describe('linear heatmap frame geometry', () => {
 		const a = centers(frame([xs, ys, [1, 2, 3]], {x: {step: 0.1}, y: {step: 0.1}}));
 		assert.equal(a.xSize, 0.1);
 		assert.deepEqual(a.yRange, [ys[0] - 0.05, ys[2] + 0.05]);
-	});
-});
-
-describe('frame rejection', () => {
-	it('requires exactly [null, equal-length numeric columns]', () => {
-		for (const f of [undefined, {}, {data: empty}, {data: [[], empty]}, {data: [null, empty, []]}, frame([]),
-			frame([[], [], [], []]), frame([null, [], []]), frame([[], 'a', []]), frame([[], [], [1]]),
-			frame([new DataView(new ArrayBuffer(4)), [], []]), frame([[], [], new BigInt64Array()])])
-			assert.throws(() => centers(f), TypeError);
-
-	});
-
-	it('rejects conflicting or malformed metadata and ambiguous singletons', () => {
-		for (const grid of [null, [], {z: {}}, {x: []}, {x: null}, {x: {distr: 3}},
-			...[0, -1, Infinity, NaN, '1', null].map(step => ({x: {step}})),
-			...[[], [0], [0, 1, 2], [1, 0], [0, Infinity], ['0', 1]].map(extent => ({y: {extent}}))])
-			assert.throws(() => centers(frame(empty, grid)));
-		assert.throws(() => canonical(frame([[1], [1], [2], [1]], unit)));
-		assert.throws(() => centers(frame([[0, 0], [0, 1], [1, 1]])));
-		assert.throws(() => centers(frame([[0], [1], [1]], {x: {step: 2}, y: {extent: [0, 2]}})));
-	});
-
-	it('requires a centered field and string labels for category metadata', () => {
-		for (const x of [{categories: 'AB'}, {categories: [0]}, {categories: Array(2)}, {categories: null},
-			{categories: ['a'], step: 2}, {categories: ['a'], extent: [0, 0]}])
-			assert.throws(() => centers(frame(empty, {x})));
-		assert.throws(() => canonical(frame([[], [], [], []], {x: {categories: ['a']}})));
-
-	});
-
-	it('rejects declared spans that cannot cover a whole number of intervals', () => {
-		const columns = [[1], [0], [1], [1]];
-		assert.throws(() => canonical(frame(columns, {x: {step: 1, extent: [0, 1.1]}})));
-		for (const extent of [[0, 0], [0, 1.5], [-Number.MAX_VALUE, Number.MAX_VALUE]])
-			assert.throws(() => canonical(frame(columns, {x: {step: 1}, y: {extent}})));
-	});
-
-	it('bounds dense dimensions including unpopulated bins and rejects unrepresentable cell edges', () => {
-		const max = 2 ** 24, two = {step: 1, extent: [0, 1]};
-		for (const grid of [{x: {step: 1, extent: [0, max]}}, {x: two, y: {step: 1, extent: [0, max / 2]}}])
-			assert.throws(() => centers(frame(empty, grid)));
-		assert.deepEqual(centers(frame(empty, {x: {step: 1, extent: [0, max - 1]}})).xRange, [-0.5, max - 0.5]);
-		assert.throws(() => centers(frame([[1e30], [0], [1]], unit)));
-		assert.throws(() => centers(frame(empty, {x: {step: Number.MIN_VALUE}})));
 	});
 });

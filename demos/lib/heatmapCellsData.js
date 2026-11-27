@@ -1,5 +1,6 @@
 // Synthetic request-latency rates on a uniform time / exponential-bucket grid.
 // Empty cells are omitted. Output is ordered by xMax, then by yMin.
+// Callers supply options within the limits in heatmapCellsData.md.
 export function generateHeatmapCells({
 	seed = 1,
 	columns = 2569,
@@ -7,18 +8,6 @@ export function generateHeatmapCells({
 	start = Date.UTC(2026, 7, 20, 10, 20),
 	xGapProbability = 0,
 } = {}) {
-	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff)
-		throw new RangeError('seed must be a 32-bit unsigned integer');
-	if (!Number.isSafeInteger(columns) || columns < 1)
-		throw new RangeError('columns must be a positive safe integer');
-	if (!Number.isSafeInteger(interval) || interval < 1)
-		throw new RangeError('interval must be a positive integer in milliseconds');
-	if (!Number.isSafeInteger(start) || !Number.isSafeInteger(start + columns * interval))
-		throw new RangeError('start and the final timestamp must be safe integers in milliseconds');
-
-	if (!Number.isFinite(xGapProbability) || xGapProbability < 0 || xGapProbability > 1)
-		throw new RangeError('xGapProbability must be a number between 0 and 1');
-
 	// Independent Mulberry32 streams keep gaps from changing the surviving cells.
 	const rng = state => () => {
 		state = (state + 0x6d2b79f5) >>> 0;

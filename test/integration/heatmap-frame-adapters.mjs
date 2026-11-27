@@ -75,8 +75,6 @@ describe('heatmapCells', () => {
 		input.data.values[2][1] = 2;
 		assert.equal(heatmapCells(input).fields, undefined);
 		assert.equal(heatmapCells(input, {geometric: true}).fields, undefined);
-
-		assert.throws(() => heatmapCells(input, {linear: true, geometric: true}), TypeError);
 	});
 
 	it('uses the same ordinal grid for the OTel classic and NHCB fixtures without rounding either rate series', () => {
@@ -87,12 +85,12 @@ describe('heatmapCells', () => {
 		const cells = heatmapCells(nhcb, {ordinal: true});
 		const labels = ['-Inf', '1', '10', '100', '1000', '10000', '100000', '+Inf'];
 		assert.deepEqual(cells.axes, [null, {splits: [0, 1, 2, 3, 4, 5, 6, 7], values: labels, align: -1}]);
-		assert.deepEqual(cells.scales, {x: {time: true, range: [1779282780, 1779283740]}, y: {range: [0, 7], distr: 1}});
+		assert.equal(cells.time, true);
 		const {xRange, yRange} = resolve(cells);
-		assert.deepEqual(xRange, cells.scales.x.range);
-		assert.deepEqual(yRange, cells.scales.y.range);
+		assert.deepEqual(xRange, [1779282780, 1779283740]);
+		assert.deepEqual(yRange, [0, 7]);
 		assert.equal(cells.xSize, 60);
-		for (const key of ['fields', 'axes', 'scales', 'grid', 'xSize']) assert.deepEqual(rows[key], cells[key]);
+		for (const key of ['fields', 'axes', 'time', 'grid', 'xSize']) assert.deepEqual(rows[key], cells[key]);
 
 		const [xs, lo, hi, counts] = cells.data[1];
 		const [ts, lower, upper, rates] = nhcb.data.values;
@@ -115,7 +113,7 @@ describe('heatmapCells', () => {
 		const r = heatmapCells(s, {ordinal: true});
 		assert.deepEqual(r.data, [null, [[0.65, 0.65, 0.9], [1, 3, 0], [2, 4, 1], [1/285, 0.125, 2.5]]]);
 		assert.deepEqual(r.axes[1].values, ['-10', '-1.25', '0', '2', '5', '10']);
-		assert.deepEqual(r.scales.x.range, [0.025, 1.15]);
+
 		const {xRange, yRange} = resolve(r);
 		assert.ok(Math.abs(xRange[0] - 0.025) < Number.EPSILON);
 		assert.equal(xRange[1], 1.15);
@@ -124,11 +122,20 @@ describe('heatmapCells', () => {
 		assert.deepEqual(s, before);
 	});
 
-	it('ranks open and finite bounds without scanning yLayout', () => {
-		const layout = [3, 0, 0];
+	it('keeps the positive prefix when compacting ordinal counts and includes the empty final timestamp in the X extent', () => {
+		const f = cells([[125, 250, 375, 500, 625], [0, 1, 2, 1, 3], [1, 2, 3, 2, 4], [2, 0.5, 0, 3, null]]);
+		const before = structuredClone(f);
+		const r = heatmapCells(f, {ordinal: true});
+		assert.deepEqual(r.data[1], [[0.125, 0.25, 0.5], [0, 1, 1], [1, 2, 2], [2, 0.5, 3]]);
+		assert.deepEqual(r.grid.x.extent, [0.125, 0.625]);
+		assert.deepEqual(r.axes[1].values, ['0', '1', '2', '3', '4']);
+		assert.deepEqual(f, before);
+	});
+
+	it('ranks open and finite bounds without reading the yLayout column', () => {
 		const f = frame([{name: 'count'}, {name: 'yLayout'}, {name: 'xMax', config: {interval: 125}}, {name: 'yMax'}, {name: 'yMin'}],
-			[[1, 2, 3], layout, [125, 125, 250], [1, null, null], [null, 1, 1]]);
-		const reads = trackReads(layout, 1);
+			[[1, 2, 3], [3, 0, 0], [125, 125, 250], [1, null, null], [null, 1, 1]]);
+		const reads = trackReads(f.data.values, 1);
 		const r = heatmapCells(f, {ordinal: true});
 		assert.equal(reads(), 0);
 		assert.deepEqual(r.axes[1].values, ['-Inf', '1', '+Inf']);
@@ -151,6 +158,14 @@ describe('heatmapCells', () => {
 				Array(8).fill(1),
 			]);
 			assert.equal(heatmapCells(f, {geometric: true}).factor, 3);
+		}
+	});
+
+	it('skips overflowing ratios from finite bounds on either side of zero', () => {
+		for (const [lo, hi, nextLo, nextHi] of [[1e-200, 1e200, -6, -2], [-1e200, -1e-200, 2, 6]]) {
+			const only = cells([[125], [lo], [hi], [1]]);
+			const sparse = cells([[125, 375], [lo, nextLo], [hi, nextHi], [1, 0.5]]);
+			assert.deepEqual([only, sparse].map(f => heatmapCells(f, {geometric: true}).factor), [undefined, 3]);
 		}
 	});
 
@@ -191,17 +206,9 @@ describe('heatmap X interval', () => {
 				const r = adapt(times, config);
 				assert.equal(r.xSize, 1);
 				assert.deepEqual(r.data[1][0], times.map(t => t / 1000));
-				if (kind !== 'cells') {
-					assert.deepEqual(r.scales.x.range, [-0.875, 6.125]);
-					assert.deepEqual(resolve(r).xRange, r.scales.x.range);
-				}
+				if (kind !== 'cells')
+					assert.deepEqual(resolve(r).xRange, [-0.875, 6.125]);
 			}
-		});
-
-		it(`${kind}: needs two distinct timestamps to infer an interval`, () => {
-			assert.throws(() => adapt([]), RangeError);
-			assert.throws(() => adapt([125]), RangeError);
-			if (!rows) assert.throws(() => adapt([125, 125]), RangeError);
 		});
 
 		it(`${kind}: with an explicit step, reads interior timestamps only for conversion`, () => {
@@ -212,18 +219,11 @@ describe('heatmap X interval', () => {
 			assert.deepEqual(r.data[1][0], [0.125, 1.125, 3.125, 4.125]);
 			for (const readCount of reads) assert.equal(readCount(), 1);
 		});
-
-		it(`${kind}: rejects invalid explicit intervals even when a step could be inferred`, () => {
-			for (const interval of [null, 0, -1, NaN, Infinity])
-				assert.throws(() => adapt([125, 1125, 2125], {interval}), RangeError, `interval: ${interval}`);
-		});
 	}
 
-	it('needs a timestamp for configured time ranges but permits empty default sparse cells', () => {
+	it('permits empty default sparse cells with an explicit interval', () => {
 		const f = cells([[], [], [], []]);
 		assert.deepEqual(heatmapCells(f), {xSize: 0.125, data: [null, [[], [], [], []]]});
-		assert.throws(() => heatmapCells(f, {ordinal: true}), RangeError);
-		assert.throws(() => heatmapRows(timed([], [])), RangeError);
 	});
 
 	it('ignores time interval metadata on categorical X', () => {
@@ -239,9 +239,9 @@ describe('heatmapRows', () => {
 		const result = heatmapRows(f);
 		assert.equal(result.xSize, 300);
 		const {xRange, yRange} = resolve(result);
-		assert.deepEqual(xRange, result.scales.x.range);
-		assert.deepEqual(yRange, result.scales.y.range);
-		assert.deepEqual(result.scales, {x: {time: true, range: [1789840200, 1790727900]}, y: {range: [0, 5], distr: 1}});
+		assert.deepEqual(xRange, [1789840200, 1790727900]);
+		assert.deepEqual(yRange, [0, 5]);
+		assert.equal(result.time, true);
 		assert.deepEqual(result.axes, [null, {splits: [0, 1, 2, 3, 4, 5], values: ['-Inf', '1.0', '2.0', '4.0', '8.0', '+Inf'], align: -1}]);
 		const [ts, ...series] = f.data.values;
 		const [xs, lo, hi, counts] = result.data[1];
@@ -255,12 +255,13 @@ describe('heatmapRows', () => {
 	});
 
 	for (const kind of ['ge', 'le']) {
+		const edges = ['-Inf', '1.0', '2', '10', '+Inf'];
+		const labels = kind === 'le' ? edges.slice(1) : edges.slice(0, -1);
+		const f = frame([
+			{type: 'string'}, ...labels.map(label => ({name: 'unused', labels: {[kind]: label}})),
+		], [['a'], [1.25], [0], [3.25], [2.25]]);
+
 		it(`keeps numerically ordered ${kind} labels and their counts in field order`, () => {
-			const edges = ['-Inf', '1.0', '2', '10', '+Inf'];
-			const labels = kind === 'le' ? edges.slice(1) : edges.slice(0, -1);
-			const f = frame([
-				{type: 'string'}, ...labels.map(label => ({name: 'unused', labels: {[kind]: label}})),
-			], [['a'], [1.25], [0], [3.25], [2.25]]);
 			const before = structuredClone(f);
 			const r = heatmapRows(f);
 			assert.deepEqual(r.fields, ['x', 'yMin', 'yMax', 'count']);
@@ -268,6 +269,19 @@ describe('heatmapRows', () => {
 			assert.deepEqual(r.data, [null, [[0, 0, 0], [0, 2, 3], [1, 3, 4], [1.25, 3.25, 2.25]]]);
 			assert.deepEqual(r.axes[1], {splits: [0, 1, 2, 3, 4], align: kind === 'le' ? -1 : 1, values: edges});
 			assert.deepEqual(f, before);
+		});
+
+		it(`lets display options center or reverse ${kind} tick alignment without reordering rows`, () => {
+			const values = ['first', 'empty', 'third', 'last'];
+			const centered = heatmapRows(f, {x: {values: ['column']}, y: {align: 0, values}});
+			assert.deepEqual(centered.grid, {x: {categories: ['column']}, y: {categories: values}});
+			assert.deepEqual(centered.data[1], [[0, 0, 0], [0, 2, 3], [1.25, 3.25, 2.25]]);
+
+			const align = kind === 'le' ? 1 : -1;
+			const reversed = heatmapRows(f, {y: {align, values, outerValue: 'outer'}});
+			assert.deepEqual(reversed.axes[1], {splits: [0, 1, 2, 3, 4], align,
+				values: align === 1 ? [...values, 'outer'] : ['outer', ...values]});
+			assert.deepEqual(reversed.data, heatmapRows(f).data);
 		});
 	}
 
@@ -280,7 +294,7 @@ describe('heatmapRows', () => {
 			fields: ['x', 'y', 'count'],
 			data: [null, [[1, 1], [0, 1], [0.125, 4.5]]], xSize: 1,
 			grid: {x: {categories: ['north', 'east', 'south', 'west']}, y: {categories: ['Warn', 'OK', 'Unknown']}},
-			scales: {x: {time: false, range: xRange}, y: {range: yRange, distr: 1}},
+			time: false,
 			axes: [null, null],
 		});
 	});
@@ -296,10 +310,9 @@ describe('heatmapRows', () => {
 		assert.deepEqual(heatmapRows(categories, {y: {align: -1, outerValue: 'start'}}).axes[1].values, ['start', 'Warn', 'OK', 'Unknown']);
 		assert.deepEqual(options, before);
 		assert.deepEqual(r.fields, ['xMax', 'yMin', 'yMax', 'count']);
+		assert.equal(r.time, false);
+		assert.deepEqual(resolve(r).xRange, [0, 4]);
 		assert.deepEqual(r.data, [null, [[2, 2], [0, 1], [1, 2], [0.125, 4.5]]]);
-		assert.throws(() => heatmapRows(categories, {x: {align: -1}}), /outerValue/);
-		assert.throws(() => heatmapRows(categories, {y: {values: ['short']}}), /labels/);
-		assert.throws(() => heatmapRows(categories, {x: {align: 2}}), /align/);
 	});
 
 	it('shifts time anchors to right edges and retains empty endpoints and skipped intervals', () => {
@@ -308,7 +321,7 @@ describe('heatmapRows', () => {
 			const r = heatmapRows(f, {x: {align}});
 			assert.equal(r.xSize, 0.25);
 			assert.equal(r.axes[0], null);
-			assert.deepEqual(r.scales.x, {time: true, range});
+			assert.equal(r.time, true);
 			assert.deepEqual(resolve(r).xRange, range);
 			assert.deepEqual(r.fields, ['xMax', 'y', 'count']);
 			assert.deepEqual(r.grid.y, {categories: ['OK']});
@@ -320,7 +333,7 @@ describe('heatmapRows', () => {
 		const {xRange, yRange} = resolve(empty);
 		assert.deepEqual(xRange, [-0.125, 0.375]);
 		assert.deepEqual(yRange, [-0.5, 0.5]);
-		assert.deepEqual(empty.scales.x.range, xRange);
+
 	});
 
 	it('places explicit time labels at source timestamps and both interval edges', () => {
@@ -331,22 +344,15 @@ describe('heatmapRows', () => {
 			[{align: 1, values: ['A', 'B'], outerValue: 'end'}, [0.125, 0.375, 0.625], ['A', 'B', 'end']],
 			[{align: 1, values: ['A', 'B', 'end']}, [0.125, 0.375, 0.625], ['A', 'B', 'end']],
 		]) {
-			const {axes, scales} = heatmapRows(f, {x});
+			const {axes, time} = heatmapRows(f, {x});
 			assert.deepEqual(axes[0], {align: x.align, splits, values});
-			assert.equal(scales.x.time, true);
+			assert.equal(time, true);
 		}
-		assert.throws(() => heatmapRows(f, {x: {values: ['A', 'B']}}), /outerValue/);
-		assert.throws(() => heatmapRows(f, {x: {outerValue: 'start'}}), /edge-aligned x.values/);
 	});
 
-	it('accepts center labels across time gaps but rejects ambiguous edge labels', () => {
+	it('places center labels at their timestamps across time gaps', () => {
 		const f = timed([125, 625], [1, 1]);
 		const values = ['A', 'B'];
 		assert.deepEqual(heatmapRows(f, {x: {align: 0, values}}).axes[0], {align: 0, splits: [0.125, 0.625], values});
-		assert.throws(() => heatmapRows(f, {x: {values, outerValue: 'start'}}), /contiguous/);
-	});
-
-	it('requires equal-length time and count columns', () => {
-		assert.throws(() => heatmapRows(timed([125, 375], [1])), /equal-length/);
 	});
 });

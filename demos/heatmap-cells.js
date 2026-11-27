@@ -221,7 +221,7 @@ function createView(root, dataset) {
 			legend: { show: false },
 			cursor: { drag: { x: true, y: true } },
 			scales: fields ? {
-				x: { time: dataset.scales?.x.time ?? true, range: exactRange },
+				x: { time: dataset.time ?? true, range: exactRange },
 				y: { range: exactRange },
 			} : {
 				// Legacy transformed grids supply their own display bounds and adaptive threshold.

@@ -1,11 +1,6 @@
-// Keep benchmark inputs repeatable unless the caller supplies a different seed.
+// Callers supply a distribution from the sampler table below, a nonnegative safe integer count,
+// and an unsigned 32-bit seed. The default seed keeps benchmark inputs repeatable.
 export function generatePoints(distribution, count = 250_000, seed = 73) {
-	if (!Number.isSafeInteger(count) || count < 0)
-		throw new RangeError('count must be a nonnegative integer');
-
-	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff)
-		throw new RangeError('seed must be an unsigned 32-bit integer');
-
 	let state = seed;
 	const random = () => ((state = (Math.imul(1664525, state) + 1013904223) >>> 0) / 2 ** 32);
 	const tau = 2 * Math.PI;
@@ -56,8 +51,6 @@ export function generatePoints(distribution, count = 250_000, seed = 73) {
 			}
 		},
 	};
-	if (!Object.hasOwn(samplers, distribution))
-		throw new RangeError(`Unknown distribution: ${distribution}. Choose from ${Object.keys(samplers).join(', ')}.`);
 
 	const xs = new Float64Array(count), ys = new Float64Array(count);
 	samplers[distribution](xs, ys);

@@ -16,8 +16,6 @@ it('generates the requested number of seeded XY samples', () => {
 		assert.deepEqual(generatePoints(name, 4), [xs.subarray(0, 4), ys.subarray(0, 4)]);
 	}
 	assert.deepEqual(generatePoints('cloud', 0), [new Float64Array(0), new Float64Array(0)]);
-	for (const count of [-1, 2.5, NaN])
-		assert.throws(() => generatePoints('cloud', count), RangeError);
 });
 
 it('reproduces each distribution by seed and resamples it with a different seed', () => {
@@ -26,8 +24,6 @@ it('reproduces each distribution by seed and resamples it with a different seed'
 		assert.deepEqual(generatePoints(name, 16, 0), points);
 		assert.notDeepEqual(generatePoints(name, 16, 0xffffffff), points);
 	}
-	for (const seed of [-1, 2 ** 32, 0.5, NaN])
-		assert.throws(() => generatePoints('cloud', 16, seed), RangeError);
 });
 
 it('coalesces sample and bucket changes without locking the sample count to either axis', () => {
@@ -166,11 +162,15 @@ describe('aggregateHeatmap', () => {
 		}
 	});
 
-	it('rejects invalid dimensions on either axis', () => {
-		for (const n of [0, -1, 1.5, NaN, Infinity]) {
-			for (const [nx, ny] of [[n, 2], [2, n]])
-				assert.throws(() => aggregateHeatmap([0, 1], [0, 1], nx, ny));
-		}
+	it('keeps distinct quarter-unit edges at a large coordinate offset', () => {
+		const base = 2 ** 50;
+		const result = aggregateHeatmap([base, base + 0.25, base + 0.75], [base, base, base], 3, 4);
+		assert.deepEqual(cells(result), [
+			[base + 0.25, base + 0.5, base + 0.75],
+			[base, base, base],
+			[base + 0.25, base + 0.25, base + 0.25],
+			[1, 1, 1],
+		]);
 	});
 
 	it('derives both ranges from a single point', () => {

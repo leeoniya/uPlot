@@ -13,7 +13,7 @@ function frames() {
 	return [{ schema: { meta: { type: 'other' } } }, {
 		schema: { meta: { type: 'heatmap-cells' }, fields: [
 			{ name: 'count' }, { name: 'yMax' }, { name: 'xMax', config: { interval: 60000 } }, { name: 'yMin' },
-		] }, data: { values: [[17.25, 3.5, 29.75], [8, 2, 8], [180000, 60000, 60000], [4, 1, 4]] },
+		] }, data: { values: [[3.5, 29.75, 17.25], [2, 8, 8], [60000, 60000, 180000], [1, 4, 4]] },
 	}];
 }
 
@@ -54,19 +54,18 @@ describe('native-library heatmap comparisons', () => {
 		assert.deepEqual(input, snapshot);
 	});
 
-	for (const [name, mutate] of [
-		['missing frame', f => f.pop()],
-		['empty arrays', f => f[1].data.values.forEach(a => a.length = 0)],
-		['missing column', f => f[1].schema.fields[0].name = 'unknown'],
-		['invalid interval', f => f[1].schema.fields[2].config.interval = 0],
-		['nonfinite interval', f => f[1].schema.fields[2].config.interval = Infinity],
-		['unequal column lengths', f => f[1].data.values[0].pop()],
-	]) {
-		it(`rejects ${name}`, () => {
-			const f = frames(); mutate(f);
-			assert.throws(() => readCells(f));
-		});
-	}
+	it('returns source indices at a column boundary where the next column skips a bucket', () => {
+		const input = frames();
+		input[1].data.values = [[12, 13, 21, 23], [4, 8, 2, 8], [60000, 60000, 120000, 120000], [2, 4, 1, 4]];
+		const cells = readCells(input), find = cellLookup(cells);
+		assert.deepEqual([cells.minTime, cells.maxX], [60000, 120000]);
+		assert.deepEqual(Array.from(gridCells(cells).values), [NaN, 21, 12, NaN, 13, 23]);
+		assert.equal(find(59999, 2), 0);
+		assert.equal(find(59999, 4), 1);
+		assert.equal(find(60000, 1), 2);
+		assert.equal(find(60000, 2), -1);
+		assert.equal(find(60000, 4), 3);
+	});
 
 	it('fills only the matrix with NaN gaps, including whole missing columns and rows', () => {
 		const grid = gridCells(readCells(frames()));
@@ -139,23 +138,13 @@ describe('native-library heatmap comparisons', () => {
 		assert.equal(reads, 0);
 	});
 
-	it('rejects an oversized dense allocation even when the grid size is a safe integer', () => {
-		const f = frames();
-		f[1].schema.fields[2].config.interval = 1;
-		f[1].data.values[2][0] = 2 ** 51;
-		const cells = readCells(f);
-		const { nx, ny } = gridShape(cells);
-		assert.ok(Number.isSafeInteger(nx * ny));
-		assert.throws(() => gridCells(cells), /matrix or edge array is too large/);
-	});
-
 	it('finds sparse cells without collapsing gaps, including exact half-open boundaries', () => {
 		const cells = readCells(frames()), find = cellLookup(cells);
-		assert.equal(find(0, 1), 1);
-		assert.equal(find(30000, 1.5), 1);
-		assert.equal(find(30000, 6), 2);
-		assert.equal(find(150000, 6), 0);
-		assert.equal(find(120000, 4), 0);
+		assert.equal(find(0, 1), 0);
+		assert.equal(find(30000, 1.5), 0);
+		assert.equal(find(30000, 6), 1);
+		assert.equal(find(150000, 6), 2);
+		assert.equal(find(120000, 4), 2);
 		for (const [x, y] of [[-1, 1], [60000, 1], [90000, 6], [30000, 2], [30000, 3], [150000, 1], [150000, 8], [180000, 6], [30000, 0]])
 			assert.equal(find(x, y), -1, `${x}, ${y}`);
 	});
@@ -185,13 +174,13 @@ describe('native-library heatmap comparisons', () => {
 	it('uses explicit Bokeh edges, shared Plotly row buffers, and sparse D3FC/Plot inputs', () => {
 		const f = frames();
 		const b = bokehData(f), p = plotlyData(f), d = d3fcData(f), o = observableData(f);
-		assert.deepEqual(Array.from(b.left), [120000, 0, 0]);
+		assert.deepEqual(Array.from(b.left), [0, 0, 120000]);
 		assert.ok(b.left instanceof Float64Array);
 		assert.ok(p.z.every(row => row instanceof Float64Array && row.buffer === p.values.buffer));
 		assert.equal(p.xDates[0], '1970-01-01T00:00:00.000Z');
 		assert.equal(p.xDates.at(-1), '1970-01-01T00:03:00.000Z');
 		assert.deepEqual(d.indices, [0, 1, 2]);
-		assert.deepEqual(d.indices.map(i => d.counts[i]), [17.25, 3.5, 29.75]);
+		assert.deepEqual(d.indices.map(i => d.counts[i]), [3.5, 29.75, 17.25]);
 		const r = rasterOptions(o);
 		assert.equal(r.x, o.xCenters);
 		assert.equal(r.y, o.yCenters);
@@ -540,9 +529,9 @@ describe('native-library heatmap comparisons', () => {
 			demo = await createBokeh(root, frames(), Bokeh);
 			const checkReadout = trackReadout(root), hint = root.querySelector('#hover').textContent;
 			for (let i = 0; i < 20; i++) {
-				hover.callback(null, { index: { indices: [0] } });
+				hover.callback(null, { index: { indices: [2] } });
 				checkReadout(cellText(120000, 180000, 4, 8, 17.25));
-				hover.callback(null, { index: { indices: [1] } });
+				hover.callback(null, { index: { indices: [0] } });
 				checkReadout(cellText(0, 60000, 1, 2, 3.5));
 				hover.callback(null, { index: { indices: [] } });
 				checkReadout(hint);
@@ -553,19 +542,19 @@ describe('native-library heatmap comparisons', () => {
 			assert.deepEqual(glyph.fill_color.transform.palette, palette);
 						assert.equal(glyph.fill_color.transform.low, -.5);
 						assert.equal(glyph.fill_color.transform.high, 23.5);
-			assert.deepEqual(Array.from(demo.source.data.left), [120000, 0, 0]);
-			hover.callback(null, { index: { indices: [0] } });
+			assert.deepEqual(Array.from(demo.source.data.left), [0, 0, 120000]);
+			hover.callback(null, { index: { indices: [2] } });
 			assert.equal(root.querySelector('#hover').textContent, cellText(120000, 180000, 4, 8, 17.25));
 			const counts = demo.source.data.count;
 			change(root, '#color-scale', 'sqrt');
 			assert.equal(demo.source.data.count, counts);
-			close(demo.source.data.color[0], 23 * colorPosition(17.25, 3.5, 29.75, 'sqrt'));
+			close(demo.source.data.color[2], 23 * colorPosition(17.25, 3.5, 29.75, 'sqrt'));
 			root.querySelector('#set-data').click();
 			assert.equal(demo.source.emits, 1);
 			change(root, '#height', '720', 'input');
 			assert.equal(demo.plot.height, 720);
 			checkReadout(hint);
-			hover.callback(null, { index: { indices: [0] } });
+			hover.callback(null, { index: { indices: [2] } });
 			checkReadout(cellText(120000, 180000, 4, 8, 17.25));
 			root.querySelector('#plot').dispatchEvent(new Event('dblclick'));
 			checkReadout(hint);

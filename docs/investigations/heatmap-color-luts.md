@@ -11,7 +11,7 @@ Relevant files:
 
 - `demos/lib/heatmapPlugin.js`: palette options, count domain, and cell rendering.
 - `demos/lib/heatmapColorLut.js`: linear, square-root, cube-root, and Log mappings and legend stops.
-- `demos/heatmap-cells.js` and `demos/heatmap-aggregation.js`: examples with inferred and zero-based domains.
+- `demos/heatmap-cells.js` and `demos/heatmap-aggregation.js`: examples that infer both domain endpoints from counts.
 - `scripts/bench-heatmap-color-blocks.mjs`: root LUT benchmarks and numerical assertions.
 - `scripts/bench-heatmap-log-blocks.mjs`: the demo Log benchmark, independent density experiments, and numerical assertions.
 
@@ -40,9 +40,9 @@ heatmapPlugin({
 `colorScale` accepts `'linear'`, `'sqrt'`, `'cbrt'`, or `'log'`. It does not change the counts or either coordinate axis.
 
 
-`colorDomain` defaults to `[null, null]`. On `setData`, each null endpoint uses the corresponding count extremum. Fixed endpoints do not require a scan.
+`colorDomain` defaults to `[null, null]`. On each data update, the plugin infers missing endpoints from the counts. With two fixed endpoints, it skips the scan.
 Counts outside the domain use the nearest endpoint. An empty dataset uses the fixed endpoint for any missing endpoint, or zero if both are missing.
-A constant domain uses the first color and a solid legend. A nonconstant Log domain must be positive.
+A constant domain or a single color uses the first color and a solid legend.
 
 For interactive controls, `colors` and `colorScale` also accept functions of the plot instance. Return the same array until the colors change.
 To change colors, return a new array and call `plot.redraw()`. The plugin reuses the observed count bounds on redraw.
@@ -56,6 +56,8 @@ For a nonconstant count domain, the normalized count is:
 ```text
 x = (count - min) / (max - min),  0 <= x <= 1
 ```
+
+Linear and root scales use the multiplier `M / (max - min)`. Both the span `max - min` and the multiplier must be finite. Linear uses `M = n`. For up to 32 colors, square root uses `M = (2n)²` and cube root uses `M = (2n)³`. Larger root palettes use `M = 1`. A constant domain or a single color needs no multiplier.
 
 ### Square root: exact flat Uint8 LUT
 
@@ -260,7 +262,7 @@ blockCount <= 2N - 1
 This count excludes object headers, temporary setup arrays, and scratch storage.
 Direct generation avoids an `M + 1` byte allocation even during setup.
 
-### Runtime lookup and rejection limits
+### Runtime lookup and LUT limits
 
 The conceptual lookup is:
 
@@ -278,11 +280,12 @@ The hot path has no root, logarithm, or correction comparisons.
 
 A constant finite domain maps to color 0 without division or logarithms.
 This degenerate case precedes the nonconstant log-domain requirements.
-For nonconstant domains, bounds must be finite and satisfy `0 < min < max`.
+For multiple colors on a nonconstant Log domain, the bounds must satisfy `0 < min < max`. The relative span `r = (max - min) / min` and the legend denominator `Math.expm1(Math.log1p(r))` must both be finite.
 
-The helper returns `null` for an invalid log domain, a nonfinite resolution or count scale, or `M > 2**24`.
-It also rejects unsupported palette sizes and distinct domains whose logarithms round to the same value.
-For a valid positive domain outside these limits, the plugin uses direct logarithms. Log remains available in the demo.
+The helper assumes a valid domain. It builds the LUT for palettes of 11 through 32 colors.
+The resolution must not exceed `2**24`, and the count scale must be finite.
+Distinct endpoints must also have distinct rounded logarithms.
+Outside these limits, the helper returns `null` and the plugin uses direct logarithms.
 
 The resolution limit bounds allocation and avoids bitwise index overflow.
 At `M = 2**24`, the directory needs 262,145 bytes: approximately 256 KiB, plus one byte.
@@ -424,7 +427,7 @@ The integration checks for the current design cover:
 - Samples across count space and log space, with absolute error at most 1 against the reference.
 - Directory entries, transition positions, monotone block contents, and final-block padding.
 - The `2N - 1` block bound and byte accounting without a full virtual-table allocation.
-- Invalid domains, nonfinite resolution, and the `2**24` resolution limit.
+- Nonfinite count scales and the `2**24` resolution limit.
 - Direct logarithms for valid Log domains outside the LUT limits.
 - An unchanged linear default, one `Log` entry, and no `log-approx` option.
 - Inferred domains on `setData`, palette changes, and reuse across redraws.

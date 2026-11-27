@@ -41,12 +41,12 @@ nextRow = replace(nextRow, 'cellRows[i] = row;', 'cellRows[i] = row;\n\t\t\tnext
 export const variants = { baseline, counts, extents, threshold, projection, objectValue, objectIn, nextRow, working };
 for (const [name, src] of Object.entries(variants)) {
 	// Run the same column scan in isolation, without the more expensive per-cell row lookup.
-	const runs = src.match(/\t\tlet minY = Infinity,[\s\S]*?\n\t\twhile \(nextCol <= x.count\)\s+starts\[nextCol\+\+\] = n;/);
+	const runs = src.match(/\t\tlet minY = Infinity,[\s\S]*?(?=\n\n\t\tif \(signed\) \{)/);
 	assert.ok(runs, 'Review column scan boundaries');
 	// Untimed equivalence checks and isolated timings call the actual closure functions.
 	variants[name] = replace(src, '...(resolve && {setFrame}),', `...(resolve && {setFrame}),
 		bench: {
-			state: () => [domainMin, domainMax, x.values, y.values, starts, cellRows.subarray(0, length)],
+			state: () => [domainMin, domainMax, x.values, y.values, starts, cellRows.subarray(0, cells[0].length)],
 			colors: prepareColors,
 			runs() {
 				const [xs, yMin, yMax] = cells, n = xs.length;

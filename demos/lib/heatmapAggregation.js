@@ -4,24 +4,10 @@ function axis(min, max, bins) {
 	const hi = constant ? max + 0.5 : max;
 	const span = constant ? 1 : hi - lo;
 	const size = span / bins, inv = bins / span;
-	// At magnitude 2**52 and above, a half-unit offset is no longer reliable.
-	if (size === 0 || !Number.isFinite(size) || !Number.isFinite(inv) || (constant && Math.abs(min) >= 2 ** 52))
-		throw new RangeError('axis range or inverse step is not representable');
 
 	const edge = constant
 		? i => min + (i / bins - 0.5)
 		: i => i === bins ? hi : lo + i * size;
-
-	// Near the precision limit even interior edges can round to the same value.
-	if (size <= 2 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi))) {
-		let prev = lo;
-		for (let i = 1; i <= bins; i++) {
-			const next = edge(i);
-			if (!(next > prev))
-				throw new RangeError('adjacent bucket edges are indistinguishable');
-			prev = next;
-		}
-	}
 
 	// Bucket lookup subtracts the observed minimum, so a constant axis has
 	// zero displacement and starts at its center bin instead of bin zero.
@@ -37,16 +23,12 @@ function bucketId(xVal, yVal, x, y, ny, offset) {
 	return offset + col * ny + row;
 }
 
+// xs and ys must be nonempty, equal-length arrays of finite coordinates.
+// nx and ny must be positive integers with nx * ny <= 2**24.
+// Each axis needs a finite positive step and inverse step, with distinct, increasing edges.
+// A constant coordinate must have magnitude below 2**52 for the half-unit padding.
 export function aggregateHeatmap(xs, ys, nx, ny) {
-	const n = xs?.length;
-	if (!Number.isSafeInteger(n) || n < 1 || n !== ys?.length)
-		throw new RangeError('xs and ys must be nonempty and have equal lengths');
-	const cells = nx * ny;
-	if (!Number.isInteger(nx) || nx < 1 || !Number.isInteger(ny) || ny < 1 || cells > 2 ** 24)
-		throw new RangeError('nx and ny must be positive integers with nx * ny <= 2**24');
-
-
-	// Callers supply finite coordinates.
+	const n = xs.length, cells = nx * ny;
 	let xmin = xs[0], xmax = xmin, ymin = ys[0], ymax = ymin;
 	for (let i = 1; i < n; i++) {
 		const x = xs[i], y = ys[i];
