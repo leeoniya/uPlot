@@ -1,6 +1,6 @@
 import uPlot from '../src/uPlot.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
-import { aggregateHeatmap } from './lib/heatmapAggregation.js';
+import { aggregateHeatmap, getSampleBounds } from './lib/heatmapAggregation.js';
 import { bindBucketControls } from './lib/heatmapBucketControls.js';
 import { generatePoints } from './lib/heatmapSamples.js';
 
@@ -11,7 +11,7 @@ const colors = ['#b6e4db', '#8dd3c7', '#62bfbd', '#3ba6b3', '#25889f', '#1e6b89'
 const colorRamp = $('color-ramp'), colorScale = $('color-scale');
 const colorMin = $('color-min'), colorMax = $('color-max');
 let selected = samplers.querySelector('[aria-pressed="true"]');
-let points, seed, xStep;
+let points, bounds, seed, xStep;
 
 const fmt = v => Number(v.toPrecision(5));
 const heatmap = heatmapPlugin({
@@ -61,6 +61,7 @@ function run(button) {
 			}
 			const start = performance.now();
 			points = generatePoints((button ?? selected).value, count, nextSeed);
+			bounds = getSampleBounds(...points);
 			const resampleMs = performance.now() - start;
 			$('last-resample').textContent = `last resample: ${resampleMs.toFixed(2)} ms`;
 			seed = nextSeed;
@@ -71,7 +72,7 @@ function run(button) {
 			}
 		}
 		const start = performance.now();
-		const result = aggregateHeatmap(...points, nx, ny);
+		const result = aggregateHeatmap(...points, nx, ny, bounds);
 		const aggregateMs = performance.now() - start;
 		const occupied = result.data[1][3].length;
 		xStep = result.grid.x.step;

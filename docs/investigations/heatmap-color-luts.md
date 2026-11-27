@@ -278,8 +278,8 @@ The implementation precomputes `M / (max - min)` as a count scale.
 Floating-point multiplication order still matters near bin boundaries.
 The hot path has no root, logarithm, or correction comparisons.
 
-A constant finite domain maps to color 0 without division or logarithms.
-This degenerate case precedes the nonconstant log-domain requirements.
+For a constant finite domain, `prepareHeatmapColorScale` uses color index 0 and a solid legend. It does not call `logApproxLut`.
+For the same domain, a direct call to `logApproxLut` returns `null`.
 For multiple colors on a nonconstant Log domain, the bounds must satisfy `0 < min < max`. The relative span `r = (max - min) / min` and the legend denominator `Math.expm1(Math.log1p(r))` must both be finite.
 
 The helper assumes a valid domain. It builds the LUT for palettes of 11 through 32 colors.

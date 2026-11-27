@@ -263,6 +263,10 @@ describe('heatmap cells demo', () => {
 			await zoom(1789840500, 1789844100, 1, 3);
 			assertNativeTimeLabels(demo.plot);
 			ticks(1, [1, 2, 3], ['1.0', '2.0', '4.0']);
+			await zoom(1789840500, 1789844100, 1.25, 3.75);
+			ticks(1, [2, 3], ['2.0', '4.0']);
+			await zoom(1789840500, 1789844100, -3, -1.5);
+			ticks(1, [], []);
 			await reset();
 			checkClassic();
 

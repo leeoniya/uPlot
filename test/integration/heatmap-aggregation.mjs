@@ -2,7 +2,7 @@ import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Window} from 'happy-dom';
-import {aggregateHeatmap} from '../../demos/lib/heatmapAggregation.js';
+import {aggregateHeatmap, getSampleBounds} from '../../demos/lib/heatmapAggregation.js';
 import {bindBucketControls} from '../../demos/lib/heatmapBucketControls.js';
 
 import {generatePoints} from '../../demos/lib/heatmapSamples.js';
@@ -86,6 +86,19 @@ function cells({data, grid, xSize, xRange, yRange, scratchBytes}) {
 }
 
 describe('aggregateHeatmap', () => {
+
+	it('reuses sample bounds across grids without changing the result or rescanning extrema', () => {
+		const xs = edgeXs.slice();
+		let firstReads = 0;
+		Object.defineProperty(xs, 0, {get() { firstReads++; return edgeXs[0]; }});
+		const bounds = getSampleBounds(xs, edgeYs);
+
+		for (const [nx, ny] of [[3, 2], [5, 7]]) {
+			firstReads = 0;
+			assert.deepEqual(aggregateHeatmap(xs, edgeYs, nx, ny, bounds), aggregateHeatmap(edgeXs, edgeYs, nx, ny));
+			assert.equal(firstReads, 1, 'only the binning pass should read the first point');
+		}
+	});
 
 	it('fills dense column runs without changing fractional edges or skipping a sparse row', () => {
 		const xs = [0.1, 0.1, 0.1, 0.7, 0.9, 0.9], ys = [-1.3, 0.2, 2.1, 0.1, -1.3, 2.1];

@@ -1,16 +1,4 @@
-// align is the direction a cell extends from its source value in axis coordinates:
-// -1 from the upper edge, +1 from the lower edge, or 0 around the center.
-// Time anchors are converted to upper edges; centered categories keep their zero-based IDs.
-function inferInterval(times) {
-	// Use an observed width. A smaller common divisor could invent a very fine grid from jitter.
-	let interval = Infinity;
-	for (let i = 1; i < times.length; i++) {
-		const step = times[i] - times[i-1];
-		if (step > 0 && step < interval) interval = step;
-	}
-
-	return interval;
-}
+import { smallestGap } from './heatmapFrame.js';
 
 // For a known geometric grid, one regular bucket suffices, even if intervening rows are missing.
 function bucketFactor(lo, hi) {
@@ -34,7 +22,7 @@ export function heatmapCells({schema, data}, {ordinal = false, geometric = false
 	const indices = cellFields.map(name => schema.fields.findIndex(f => f.name === name));
 	// Sparse cells already follow the plugin contract. Only X needs unit conversion.
 	const [times, lo, hi, counts] = indices.map(i => data.values[i]);
-	const interval = schema.fields[indices[0]].config?.interval ?? inferInterval(times);
+	const interval = schema.fields[indices[0]].config?.interval ?? smallestGap(times, true);
 	const xSize = interval / 1000;
 
 	if (!ordinal) {
@@ -92,6 +80,9 @@ function ordinalAxis(labels, options, defaultAlign, defaultOuter) {
 	return align === 0 ? {categories: values} : {splits: values.map((_, i) => i), values, align};
 }
 
+// align is the direction a cell extends from its source value in axis coordinates:
+// -1 from the upper edge, +1 from the lower edge, or 0 around the center.
+// Time anchors are converted to upper edges; centered categories keep their zero-based IDs.
 // The first field supplies X anchors. Each remaining field is one Y bucket's values.
 // x/y.values override tick text in display order. For edge alignment, supply all n+1
 // labels or the n anchor labels and outerValue. Skip empty cells, not empty axis labels.
@@ -102,7 +93,7 @@ export function heatmapRows(frame, {x = {}, y = {}} = {}) {
 	const time = xField.type === 'time';
 	let xAxis = null, xSize = 1, rightEdges;
 	if (time) {
-		const interval = xField.config?.interval ?? inferInterval(domain);
+		const interval = xField.config?.interval ?? smallestGap(domain, false);
 		xSize = interval / 1000;
 		const align = x.align ?? -1;
 		const offset = (1 + align) * interval / 2;

@@ -22,8 +22,7 @@ export function generateHeatmapCells({
 	const rows = 169;
 	const edges = Array.from({length: rows + 1}, (_, i) => 2 ** ((firstExponent + i) / binsPerOctave));
 	const rates = new Float64Array(rows);
-	const xMax = [], yMin = [], yMax = [], count = [], yLayout = [];
-	const values = [xMax, yMin, yMax, count, yLayout];
+	const xMax = [], yMin = [], yMax = [], count = [];
 	const rateWindow = 285;
 
 	// Mass is the total expected rate of a band; width is its log2 standard deviation.
@@ -121,7 +120,6 @@ export function generateHeatmapCells({
 			yMin.push(edges[row]);
 			yMax.push(edges[row + 1]);
 			count.push(n / rateWindow);
-			yLayout.push(0);
 		}
 	}
 
@@ -140,6 +138,6 @@ export function generateHeatmapCells({
 				{name: 'yLayout', type: 'number', config: {}},
 			],
 		},
-		data: {values},
+		data: {values: [xMax, yMin, yMax, count, new Array(count.length).fill(0)]},
 	}];
 }

@@ -3,9 +3,6 @@
 export function logApproxLut(colorCount, minCount, maxCount) {
 	if (colorCount < 11 || colorCount > 32) return null;
 
-	if (minCount == maxCount)
-		return { intervals: 0, directory: new Uint8Array(1), blocks: new Uint8Array(64), lookup: () => 0 };
-
 	const countRange = maxCount - minCount;
 	const logRange = Math.log(maxCount) - Math.log(minCount);
 	// Distinct endpoints can have the same rounded log. Use the direct log1p scale then.

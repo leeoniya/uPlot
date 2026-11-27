@@ -23,21 +23,29 @@ function bucketId(xVal, yVal, x, y, ny, offset) {
 	return offset + col * ny + row;
 }
 
+function extent(values) {
+	let min = values[0], max = min;
+	for (let i = 1; i < values.length; i++) {
+		const v = values[i];
+		if (v < min) min = v;
+		else if (v > max) max = v;
+	}
+	return [min, max];
+}
+
 // xs and ys must be nonempty, equal-length arrays of finite coordinates.
+export function getSampleBounds(xs, ys) {
+	const [xmin, xmax] = extent(xs), [ymin, ymax] = extent(ys);
+	return {xmin, xmax, ymin, ymax};
+}
+
+// Supply bounds from getSampleBounds only while the sample is unchanged.
 // nx and ny must be positive integers with nx * ny <= 2**24.
 // Each axis needs a finite positive step and inverse step, with distinct, increasing edges.
 // A constant coordinate must have magnitude below 2**52 for the half-unit padding.
-export function aggregateHeatmap(xs, ys, nx, ny) {
+export function aggregateHeatmap(xs, ys, nx, ny, bounds = getSampleBounds(xs, ys)) {
 	const n = xs.length, cells = nx * ny;
-	let xmin = xs[0], xmax = xmin, ymin = ys[0], ymax = ymin;
-	for (let i = 1; i < n; i++) {
-		const x = xs[i], y = ys[i];
-		if (x < xmin) xmin = x;
-		else if (x > xmax) xmax = x;
-		if (y < ymin) ymin = y;
-		else if (y > ymax) ymax = y;
-	}
-
+	const {xmin, xmax, ymin, ymax} = bounds;
 	const x = axis(xmin, xmax, nx), y = axis(ymin, ymax, ny);
 	const offset = x.offset * ny + y.offset;
 	const dense = new Uint32Array(cells);
@@ -47,6 +55,10 @@ export function aggregateHeatmap(xs, ys, nx, ny) {
 		used += dense[id]++ === 0;
 	}
 
+	return emitCells(dense, used, nx, ny, x, y);
+}
+
+function emitCells(dense, used, nx, ny, x, y) {
 	const xMax = new Float64Array(used), yMin = new Float64Array(used), yMax = new Float64Array(used);
 	const counts = new Uint32Array(used);
 	const edges = new Float64Array(ny + 1);

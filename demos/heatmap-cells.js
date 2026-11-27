@@ -1,6 +1,5 @@
 import uPlot from '../src/uPlot.js';
 import { rangeY } from '../src/rangeY.js';
-import { closestIdx } from '../src/utils.js';
 import { snapshot1, snapshot2 } from './data/heatmap-snapshots.js';
 import { heatmapCells, heatmapRows } from './lib/heatmapFrameAdapters.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
@@ -22,18 +21,16 @@ function formatSeconds(seconds) {
 	return `${Number((seconds * scale).toPrecision(3))} ${unit}`;
 }
 
-// Resolve by split position, not its visible index: zoom may hide the first labels.
-function labeledAxis(axis) {
+// Each Y split is an edge rank, even after zoom hides earlier ticks.
+function bucketEdgeLabels(axis) {
 	if (!axis) return;
 	const { splits, values, align } = axis;
-	const label = v => values[closestIdx(v, splits)];
 	return {
 		opts: {
-			splits: (u, idx, min, max) => splits.filter(v => v >= min && v <= max),
-			values: (u, visible) => visible.map(v => v == null ? null : label(v)),
+			splits: (u, idx, min, max) => splits.slice(Math.max(0, Math.ceil(min)), Math.max(0, Math.floor(max) + 1)),
+			values: (u, visible) => visible.map(v => v == null ? null : values[v]),
 		},
-		cell: (lo, hi) => align === 0 ? label((lo + hi) / 2) :
-			align < 0 ? `(${label(lo)}, ${label(hi)}]` : `[${label(lo)}, ${label(hi)})`,
+		cell: (lo, hi) => align < 0 ? `(${values[lo]}, ${values[hi]}]` : `[${values[lo]}, ${values[hi]})`,
 	};
 }
 
@@ -88,8 +85,7 @@ export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parity
 function createView(root, dataset) {
 	const { fields, grid, xSize, data: sourceData, axes, zeroHeight = 0, formatY = formatSeconds } = dataset;
 	const hasZeroBucket = zeroHeight > 0;
-	const labeledX = labeledAxis(axes?.[0]);
-	const labeledY = labeledAxis(axes?.[1]);
+	const labeledY = bucketEdgeLabels(axes?.[1]);
 	const centeredX = grid?.x?.categories != null, centeredY = grid?.y?.categories != null;
 	const ordinalY = centeredY || !!labeledY;
 	const intervalLabel = xSize == 60 ? 'one-minute' : xSize % 60 == 0 ? `${xSize / 60}-minute` : `${xSize}-second`;
@@ -237,7 +233,7 @@ function createView(root, dataset) {
 			},
 			axes: [
 				// Canvas-only axes keep their DOM hit targets from intercepting edge-cell hover in Chrome.
-				{ dom: false, stroke: '#b7bdc5', grid: axisLines, ticks: axisLines, ...labeledX?.opts },
+				{ dom: false, stroke: '#b7bdc5', grid: axisLines, ticks: axisLines },
 				{
 					dom: false,
 					stroke: '#b7bdc5',
@@ -298,7 +294,7 @@ function createView(root, dataset) {
 					hoverIdx = i;
 					if (i == null) { readoutText.data = hint; return; }
 					const cols = u.data[1], xVal = cols[0][i], yVal = cols[1][i];
-					const x = centeredX ? u.axes[0].values(u, [xVal], 0, 0, 1)[0] : labeledX ? labeledX.cell(xVal - xSize, xVal) :
+					const x = centeredX ? u.axes[0].values(u, [xVal], 0, 0, 1)[0] :
 						u.axes[0].values(u, [xVal - xSize, xVal], 0, 0, xSize).join('–').replace(/\n/g, ' ') + ' UTC';
 					const y = centeredY ? u.axes[1].values(u, [yVal], 1, 0, 1)[0] : labeledY ? labeledY.cell(yVal, cols[2][i]) :
 						`${formatY(yVal)}–${formatY(cols[2][i])}`;

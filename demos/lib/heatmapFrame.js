@@ -56,7 +56,8 @@ function orderedRows(xs, ys) {
 	}
 }
 
-function smallestGap(values, xRuns) {
+// Use an observed width, not a common divisor that could turn jitter into a fine grid.
+export function smallestGap(values, xRuns) {
 	let gap = Infinity;
 	for (let i = 0; i < values.length;) {
 		const next = xRuns ? heatmapRunEnd(values, i) : i + 1;

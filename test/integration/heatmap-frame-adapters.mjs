@@ -211,6 +211,14 @@ describe('heatmap X interval', () => {
 			}
 		});
 
+		it(`${kind}: needs an explicit interval for a single distinct timestamp`, () => {
+			const times = rows ? [125] : [125, 125];
+			assert.equal(adapt(times).xSize, Infinity);
+			const r = adapt(times, {interval: 250});
+			assert.equal(r.xSize, 0.25);
+			assert.deepEqual(r.data[1][0], times.map(t => t / 1000));
+		});
+
 		it(`${kind}: with an explicit step, reads interior timestamps only for conversion`, () => {
 			const times = [125, 1125, 3125, 4125];
 			const reads = [1, 2].map(i => trackReads(times, i));
@@ -218,6 +226,18 @@ describe('heatmap X interval', () => {
 			assert.equal(r.xSize, 0.25);
 			assert.deepEqual(r.data[1][0], [0.125, 1.125, 3.125, 4.125]);
 			for (const readCount of reads) assert.equal(readCount(), 1);
+		});
+	}
+
+	for (const name of ['parity', 'parity-zero']) {
+		it(`infers the ${name} fixture's interval without a second full timestamp scan`, () => {
+			const [f] = JSON.parse(readFileSync(new URL(`../../demos/data/heatmap-${name}.json`, import.meta.url), 'utf8'));
+			const x = f.schema.fields.findIndex(field => field.name === 'xMax');
+			assert.equal(f.schema.fields[x].config?.interval, undefined);
+			const times = f.data.values[x];
+			const reads = times.map((_, i) => trackReads(times, i));
+			assert.equal(heatmapCells(f, {geometric: true}).xSize, 30);
+			assert.ok(reads.reduce((sum, read) => sum + read(), 0) < 2 * times.length);
 		});
 	}
 

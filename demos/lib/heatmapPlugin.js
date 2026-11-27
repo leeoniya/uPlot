@@ -160,8 +160,7 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap: gapOption = 0, zer
 		// Supplied extents bound the scale, not these arrays derived from occupied cells.
 		x.values.length = x.count + 1;
 		starts.length = x.count + 1;
-		for (let col = 0; col <= x.count; col++)
-			x.values[col] = x.bwd(x.origin + col * x.step);
+		x.values[0] = x.bwd(x.origin);
 
 		// Ascending Y within each run makes its endpoints sufficient for the full grid extent.
 		let minY = Infinity, maxY = -Infinity;
@@ -170,9 +169,12 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap: gapOption = 0, zer
 		for (let start = 0; start < n;) {
 			const xMax = xs[start];
 			const col = Math.round((x.fwd(xMax) - x.origin) * x.invStep) - 1;
+			// Use the supplied right edge for each occupied column; infer only missing edges.
+			for (let edge = nextCol + 1; edge <= col; edge++)
+				x.values[edge] = x.bwd(x.origin + edge * x.step);
+			x.values[col + 1] = xMax;
 			starts.fill(start, nextCol, col + 1);
 			nextCol = col + 1;
-			x.values[col + 1] = xMax;
 
 			const end = heatmapRunEnd(xs, start);
 			minY = Math.min(minY, yMin[start]);
@@ -412,16 +414,14 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap: gapOption = 0, zer
 			for (let col = 0; col < x.count; col++) {
 				const left = x.pixels[col];
 				const width = x.pixels[col + 1] - left;
-				if (width <= 0)
+				if (!(width > gapX))
 					continue;
 				if (cellGap > 0) {
-					if (width > gapX) {
-						for (let i = starts[col], end = starts[col + 1]; i < end; i++) {
-							const row = cellRows[i];
-							const height = heights[row] - gapY;
-							if (height > 0)
-								paths[lookupColor(counts[i])].rect(left + gapX / 2, y.pixels[row + 1] + gapY / 2, width - gapX, height);
-						}
+					for (let i = starts[col], end = starts[col + 1]; i < end; i++) {
+						const row = cellRows[i];
+						const height = heights[row] - gapY;
+						if (height > 0)
+							paths[lookupColor(counts[i])].rect(left + gapX / 2, y.pixels[row + 1] + gapY / 2, width - gapX, height);
 					}
 					continue;
 				}

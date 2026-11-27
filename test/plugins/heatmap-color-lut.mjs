@@ -93,13 +93,9 @@ describe('approximate log color LUT', () => {
 		assert.equal(errors, 4);
 	});
 
-	it('maps constant domains to zero without large tables', () => {
-		for (const count of [-1, 0, 3, 1e100]) {
-			const table = logApproxLut(24, count, count);
-			assert.equal(table.lookup(count), 0);
-			assert.equal(table.intervals, 0);
-			assert.equal(table.directory.byteLength + table.blocks.byteLength, 65);
-		}
+	it('returns null for constant domains', () => {
+		for (const count of [-1, 0, 3, 1e100])
+			assert.equal(logApproxLut(24, count, count), null);
 	});
 
 	it('falls back for palettes outside 11–32 colors and domains without a usable bounded grid', () => {
@@ -134,9 +130,9 @@ const modes = ['linear', 'sqrt', 'cbrt', 'log'];
 describe('prepared heatmap color scale', () => {
 	it('uses a solid first color for single colors and constant domains, including empty data', () => {
 		for (const scale of modes) {
-			for (const [colors, min, max] of [[['red'], 1, 10], [['red', 'blue'], 0, 0], [['red', 'blue'], -3, -3]]) {
+			for (const [colors, min, max] of [[['red'], 1, 10], [['red', 'blue'], 0, 0], [['red', 'blue'], -3, -3], [palette(24), 3, 3]]) {
 				const { lookup, stops } = prepareHeatmapColorScale(colors, scale, min, max);
-				assert.deepEqual(stops, [[0, 'red'], [1, 'red']]);
+				assert.deepEqual(stops, [[0, colors[0]], [1, colors[0]]]);
 				assert.deepEqual([-Infinity, min, max, Infinity].map(lookup), [0, 0, 0, 0]);
 			}
 		}
