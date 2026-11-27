@@ -52,7 +52,7 @@ A separate seeded random stream selects the gaps. Surviving cells retain exactly
 
 The demo pages use `xGapProbability: 0.02` for approximately 2% missing interior columns. With the default seed, this produces 246,053 cells. At full scale, individual gaps can be narrower than one pixel. Zoom reveals the empty intervals.
 
-The uPlot plugin leaves gap interiors unpainted and returns no hover hit there. Drawing and hit testing use the same fractional canvas coordinates on both axes. At an exact cell boundary, an adjacent painted cell can still respond. The shared comparison helper instead uses half-open data bounds: left-inclusive and right-exclusive.
+The uPlot plugin leaves gap interiors unpainted and returns no hover hit there. Drawing and hit testing use the same cell edges. With no visible cell gap, the plugin rounds shared edges to the nearest device pixel on each axis. If any visible bucket spans less than one device pixel along an axis, that axis keeps its fractional edges. The plugin measures the full bucket before it clips the edges to the viewport. At an exact cell boundary, an adjacent painted cell can still respond. The shared comparison helper instead uses half-open data bounds: left-inclusive and right-exclusive.
 
 ## Approximation model
 

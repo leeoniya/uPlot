@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import '../../scripts/instrument.mjs';
 import uPlot from '../../src/uPlot.js';
 import { heatmapPlugin } from '../../demos/lib/heatmapPlugin.js';
+import { paintedEdge } from '../helpers/heatmap-edges.mjs';
 
 const colors = ['navy', 'gold'];
 const nextPaint = () => new Promise(requestAnimationFrame);
@@ -90,8 +91,8 @@ function checkCells(u, cells, hovered) {
 	const expected = cells.map(([x0, x1, y0, y1, color], id) => {
 		assert.equal(hover(u, (x0 + x1) / 2, (y0 + y1) / 2), id);
 		assert.equal(hovered.at(-1), id, 'onHover reports the raw source index');
-		const left = u.valToPos(x0, 'x', true), top = u.valToPos(y1, 'y', true);
-		return [color, left, top, u.valToPos(x1, 'x', true) - left, u.valToPos(y0, 'y', true) - top];
+		const left = paintedEdge(u, 'x', x0), top = paintedEdge(u, 'y', y1);
+		return [color, left, top, paintedEdge(u, 'x', x1) - left, paintedEdge(u, 'y', y0) - top];
 	});
 	const order = (a, b) => a[1] - b[1] || a[2] - b[2];
 	assert.deepEqual(painted(u).sort(order), expected.sort(order));

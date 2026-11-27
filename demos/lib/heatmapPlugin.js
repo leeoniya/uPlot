@@ -15,7 +15,7 @@ import { compileHeatmapFields, heatmapRunEnd, maxHeatmapCells } from './heatmapF
 // cellGap is a CSS-pixel number or (u) => number, read once per draw; it defaults to 0.
 // Omit gaps globally if they remove over 10% of the area formed by the smallest visible grid width/height.
 // Measure intersecting buckets before clipping; a sliver at the viewport edge must not set the minimum.
-// Drawing and hover share fractional canvas coordinates for both axes.
+// Drawing and hover share grid edges. Without gaps, each axis snaps to device pixels unless it has subpixel buckets.
 // Half the effective gap is inset from each clipped cell edge.
 // Gaps affect drawing, not hit testing. Cells too small for the gap stay hoverable with full-cell outlines.
 // An effective positive gap disables adjacent-row merging. Fractional gaps are not rounded to device pixels.
@@ -116,7 +116,7 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap = 0, zeroHeight = 0
 	const signed = grid.y?.distr == 3 && grid.y.factor != null;
 	const factor = grid.y?.factor;
 	const logFactor = signed ? Math.log(factor) : 0;
-	let exponent = 0, positiveStart = 1, zeroRow = -1;
+	let exponent = 0, positiveStart = 1, zeroRow = -1, zeroSpan;
 	if (signed) {
 		// When a zero bucket is present, coordinates 1 and 2 are its edges; positive rows start at 3.
 		// Subtract exponents rather than dividing values, which can overflow at tiny edges.
@@ -292,9 +292,11 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap = 0, zeroHeight = 0
 		for (let i = 0; i < values.length; i++) {
 			const pixel = u.valToPos(values[i], key, true);
 			pixels[i] = Math.max(offset, Math.min(end, pixel));
-			// The zero row gets its final height below; its two spacer rows have no cells.
-			if (cellGap > 0 && i > 0 && pixels[i] != pixels[i - 1] &&
-				(axis != y || zeroRow < 0 || i < zeroRow || i > zeroRow + 2))
+			// The zero row can expand after projection; its two spacer rows have no cells.
+			if (axis == y && zeroRow >= 0 && i >= zeroRow && i <= zeroRow + 2) {
+				if (i == zeroRow + 1) zeroSpan = pixels[i] != pixels[i - 1] ? previous - pixel : Infinity;
+			}
+			else if (i > 0 && pixels[i] != pixels[i - 1])
 				minSize = Math.min(minSize, Math.abs(pixel - previous));
 			previous = pixel;
 		}
@@ -302,18 +304,23 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap = 0, zeroHeight = 0
 		return minSize;
 	}
 
-	// Adjust only the two shared edges. Drawing and hit testing both use these pixels.
+	function snapEdges(pixels, start, end, from = 0, to = pixels.length) {
+		for (let i = from; i < to; i++) {
+			const p = pixels[i];
+			if (p > start && p < end)
+				pixels[i] = Math.max(start, Math.min(end, Math.round(p)));
+		}
+	}
+
 	function projectZero(u, row) {
 		const p = y.pixels, top = p[row + 1], bottom = p[row];
 		const actual = bottom - top;
 		const height = cssSize(zeroHeight, 'zeroHeight', u) * cssToCanY;
 		if (height <= actual || u.scales.y.min > 0 || u.scales.y.max < 0) return;
-		const lo = p[row + 2] ?? u.bbox.top;
-		const hi = p[row - 1] ?? (u.bbox.top + u.bbox.height);
 		const center = u.valToPos(0, 'y', true);
-		p[row + 1] = Math.max(lo, Math.min(top, center - height / 2));
-		p[row] = Math.min(hi, Math.max(bottom, center + height / 2));
-
+		p[row + 1] = Math.max(p[row + 2] ?? u.bbox.top, Math.min(top, center - height / 2));
+		p[row] = Math.min(p[row - 1] ?? (u.bbox.top + u.bbox.height), Math.max(bottom, center + height / 2));
+		return true;
 	}
 
 	// Search drawing bounds directly, including collapsed edges. Y pixels descend as values increase.
@@ -404,20 +411,34 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap = 0, zeroHeight = 0
 		invalidate();
 		if (length > 0 && u.series[1].show) {
 			const minWidth = project(u, x, 'x', bbox.left, bbox.width);
-			let minHeight = project(u, y, 'y', bbox.top, bbox.height);
-			if (zeroRow >= 0) projectZero(u, zeroRow);
-			heights.length = y.count;
-			for (let row = 0; row < y.count; row++)
-				heights[row] = y.pixels[row] - y.pixels[row + 1];
-			if (cellGap > 0 && zeroRow >= 0 && heights[zeroRow] > 0 && y.values[zeroRow] >= u.scales.y.min && y.values[zeroRow + 1] <= u.scales.y.max)
-				minHeight = Math.min(minHeight, heights[zeroRow]);
+			const regularHeight = project(u, y, 'y', bbox.top, bbox.height);
+			const expandedZero = zeroRow >= 0 && projectZero(u, zeroRow);
 			if (cellGap > 0) {
-				// Projection collects both minima; this decision needs no source-cell scan or extra traversal.
+				let minHeight = regularHeight;
+				if (zeroRow >= 0 && y.values[zeroRow] >= u.scales.y.min && y.values[zeroRow + 1] <= u.scales.y.max) {
+					const height = y.pixels[zeroRow] - y.pixels[zeroRow + 1];
+					if (height > 0) minHeight = Math.min(minHeight, height);
+				}
 				const gapX = cellGap * cssToCanX, gapY = cellGap * cssToCanY;
 				if (minWidth == Infinity || minHeight == Infinity || minWidth <= gapX || minHeight <= gapY ||
 					(minWidth - gapX) * (minHeight - gapY) < .9 * minWidth * minHeight)
 					cellGap = 0;
 			}
+			if (cellGap == 0) {
+				if (minWidth >= 1) snapEdges(x.pixels, bbox.left, bbox.left + bbox.width);
+				if (regularHeight >= 1) {
+					if (expandedZero) {
+						// Neither side can round across the explicitly sized zero row.
+						snapEdges(y.pixels, y.pixels[zeroRow], bbox.top + bbox.height, 0, zeroRow);
+						snapEdges(y.pixels, bbox.top, y.pixels[zeroRow + 1], zeroRow + 2);
+					}
+					else if (zeroRow < 0 || zeroSpan >= 1)
+						snapEdges(y.pixels, bbox.top, bbox.top + bbox.height);
+				}
+			}
+			heights.length = y.count;
+			for (let row = 0; row < y.count; row++)
+				heights[row] = y.pixels[row] - y.pixels[row + 1];
 			paths.length = colors.length;
 			for (let i = 0; i < paths.length; i++)
 				paths[i] = new Path2D();

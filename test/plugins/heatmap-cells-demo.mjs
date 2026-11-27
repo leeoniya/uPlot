@@ -7,6 +7,7 @@ import { rangeY } from '../../src/rangeY.js';
 import { timeAxisVals, timeAxisStamps, _timeAxisStampsS } from '../../src/opts.js';
 import { generateHeatmapCells } from '../../demos/lib/heatmapCellsData.js';
 import { createDemo } from '../../demos/heatmap-cells.js';
+import { paintedEdge } from '../helpers/heatmap-edges.mjs';
 
 function createDemoRoot() {
 	const html = readFileSync(new URL('../../demos/heatmap-cells.html', import.meta.url), 'utf8');
@@ -58,6 +59,16 @@ function assertCoverage(actual, expected) {
 	const drawn = coverage(actual), boxes = coverage(expected);
 	assert.equal(drawn.length, boxes.length);
 	boxes.forEach((box, i) => box.forEach((value, j) => assertNear(drawn[i][j], value)));
+}
+
+function checkColumnColors(u, paths, indices, size) {
+	const expected = Array.from({ length: size }, () => []);
+	indices.forEach((color, i) => expected[color].push(paintedEdge(u, 'x', i * 60)));
+	assert.equal(paths.length, size);
+	paths.forEach((path, color) => {
+		const xs = path.log.filter(e => e[0] == 'rect').flatMap(e => e.slice(1)).map(rect => rect[0]);
+		assert.deepEqual(xs, expected[color], `${size} colors, palette index ${color}`);
+	});
 }
 
 const colorModes = ['linear', 'sqrt', 'cbrt', 'log'];
@@ -214,10 +225,12 @@ describe('heatmap cells demo', () => {
 				await settleLayout();
 				const centered = source === 'categorical';
 				const [xs, ys, hi] = u.data[1];
+				// Classic has thousands of equal-width time buckets; categorical has three.
+				const snapX = u.valToPos(xs[0], 'x', true) - u.valToPos(xs[0] - xStep, 'x', true) >= 1;
 				const boxes = xs.map((x, i) => {
 					const right = x + (centered ? 0.5 : 0);
-					const left = u.valToPos(right - xStep, 'x', true), top = u.valToPos(centered ? ys[i] + 0.5 : hi[i], 'y', true);
-					return [left, top, u.valToPos(right, 'x', true) - left, u.valToPos(ys[i] - (centered ? 0.5 : 0), 'y', true) - top];
+					const left = paintedEdge(u, 'x', right - xStep, snapX), top = paintedEdge(u, 'y', centered ? ys[i] + 0.5 : hi[i]);
+					return [left, top, paintedEdge(u, 'x', right, snapX) - left, paintedEdge(u, 'y', ys[i] - (centered ? 0.5 : 0)) - top];
 				});
 				assertCoverage(rectangles(u), boxes);
 				assert.equal(scale.disabled, true);
@@ -369,35 +382,39 @@ describe('heatmap cells demo', () => {
 		finally { demo.destroy(); root.remove(); }
 	});
 
-	it('draws and hovers Snapshot 1 upper buckets at their projected X and Y bounds at DPR 1.5', async () => {
-		const root = createDemoRoot();
-		const demo = createDemo(root, generateHeatmapCells({ columns: 2 }));
-		try {
-			selectDataset(root, 'snapshot1');
-			const u = demo.plot;
-			u.setPxRatio(1.5);
-			await settleLayout();
-			const [xs, lo, hi] = u.data[1];
-			const canvas = u.root.querySelector('canvas');
-			const sy = canvas.height / u.height;
-			const rects = rectangles(u);
-			for (const upper of [...new Set(hi)].sort((a, b) => b - a).slice(0, 2)) {
-				const i = hi.indexOf(upper);
-				const left = u.valToPos(xs[i] - 60, 'x', true);
-				const right = u.valToPos(xs[i], 'x', true);
-				const top = u.valToPos(upper, 'y', true);
-				const h = u.valToPos(lo[i], 'y', true) - top;
-				const expected = [left, top, right - left, h];
-				assert.ok([left, right].some(p => !near(p, Math.round(p))), 'at least one X edge is fractional');
-				assert.ok([top, top + h].some(p => !near(p, Math.round(p))), 'at least one Y edge is fractional');
-				assert.ok(rects.some(rect => expected.every((v, j) => near(rect[j], v))), `missing projected cell ${expected}`);
-				u.setCursor({ left: u.valToPos(xs[i] - 30, 'x'), top: (top + h / 2) / sy - parseFloat(u.over.style.top) });
-				assert.equal(u.cursor.idxs[1], i);
-				assertHoverBox(u, expected);
+	for (const snapY of [true, false]) {
+		it(`draws and hovers Snapshot 1 upper buckets with snapped X and ${snapY ? 'snapped' : 'subpixel'} Y at DPR 1.5`, async () => {
+			const root = createDemoRoot();
+			if (!snapY) root.querySelector('#y-scale').value = 'linear';
+			const demo = createDemo(root, generateHeatmapCells({ columns: 2 }));
+			try {
+				selectDataset(root, 'snapshot1');
+				const u = demo.plot;
+				u.setPxRatio(1.5);
+				if (!snapY) u.setScale('y', { min: 0, max: 64 });
+				await settleLayout();
+				const narrowRow = u.valToPos(firstPositive, 'y', true) - u.valToPos(1, 'y', true);
+				assert.ok(narrowRow > 0);
+				assert.equal(narrowRow >= 1, snapY, 'the smallest regular bucket sets the Y resolution');
+				const [xs, lo, hi] = u.data[1];
+				const sy = u.root.querySelector('canvas').height / u.height;
+				const rects = rectangles(u);
+				for (const upper of Array.from(new Set(hi)).sort((a, b) => b - a).slice(0, 2)) {
+					const i = hi.indexOf(upper);
+					const left = paintedEdge(u, 'x', xs[i] - 60), right = paintedEdge(u, 'x', xs[i]);
+					const top = paintedEdge(u, 'y', upper, snapY), h = paintedEdge(u, 'y', lo[i], snapY) - top;
+					const expected = [left, top, right - left, h];
+					assert.ok([xs[i] - 60, xs[i]].some(v => paintedEdge(u, 'x', v) != u.valToPos(v, 'x', true)), 'at least one X edge moves');
+					assert.ok([upper, lo[i]].some(v => !Number.isInteger(u.valToPos(v, 'y', true))), 'raw Y edges distinguish snapping');
+					assert.ok(rects.some(rect => expected.every((v, j) => near(rect[j], v))), `missing projected cell ${expected}`);
+					u.setCursor({ left: u.valToPos(xs[i] - 30, 'x'), top: (top + h / 2) / sy - parseFloat(u.over.style.top) });
+					assert.equal(u.cursor.idxs[1], i);
+					assertHoverBox(u, expected);
+				}
 			}
-		}
-		finally { demo.destroy(); root.remove(); }
-	});
+			finally { demo.destroy(); root.remove(); }
+		});
+	}
 
 	for (const source of ['snapshot1', 'snapshot2']) {
 		for (const mode of ['asinh', 'linear']) {
@@ -421,8 +438,8 @@ describe('heatmap cells demo', () => {
 					u.over.dispatchEvent(new MouseEvent('mouseenter'));
 
 					function checkZero(top, bottom) {
-						const left = u.valToPos(firstTime - 60, 'x', true);
-						const width = u.valToPos(firstTime, 'x', true) - left;
+						const left = paintedEdge(u, 'x', firstTime - 60);
+						const width = paintedEdge(u, 'x', firstTime) - left;
 						const center = py(0);
 						const rect = rectangles(u).find(([x, y, w, h]) => x == left && w == width && y <= center && center < y + h);
 						assert.ok(rect, 'the first column contains a zero marker');
@@ -529,9 +546,8 @@ describe('heatmap cells demo', () => {
 				const check = (u, gap) => {
 					const canvas = u.root.querySelector('canvas');
 					const sx = canvas.width / u.width, sy = canvas.height / u.height;
-					const { left, top, width, height } = u.bbox;
-					const px = v => Math.max(left, Math.min(left + width, u.valToPos(v, 'x', true)));
-					const py = v => Math.max(top, Math.min(top + height, u.valToPos(v, 'y', true)));
+					const px = v => paintedEdge(u, 'x', v, gap == 0);
+					const py = v => paintedEdge(u, 'y', v, gap == 0);
 					const [xs, lo, hi] = u.data[1];
 					const expected = xs.map((x, i) => [px(x - 60) + gap * sx / 2, py(hi[i]) + gap * sy / 2,
 						px(x) - px(x - 60) - gap * sx, py(lo[i]) - py(hi[i]) - gap * sy]);
@@ -609,13 +625,7 @@ describe('heatmap cells demo', () => {
 				const start = u.ctx.log.length;
 				u.hooks.draw[0](u);
 				const paths = u.ctx.log.slice(start).filter(e => e[0] == 'fill').flatMap(e => e.slice(1)).map(([path]) => path);
-				const expected = Array.from({ length: size }, () => []);
-				indices.forEach((color, i) => expected[color].push(u.valToPos(i * 60, 'x', true)));
-				assert.equal(paths.length, size);
-				paths.forEach((path, color) => {
-					const xs = path.log.filter(e => e[0] == 'rect').flatMap(e => e.slice(1)).map(rect => rect[0]);
-					assert.deepEqual(xs, expected[color], `${size} colors, palette index ${color}`);
-				});
+				checkColumnColors(u, paths, indices, size);
 			}
 			finally { demo?.destroy(); root.remove(); }
 		}
@@ -652,13 +662,7 @@ describe('heatmap cells demo', () => {
 				assert.equal(root.querySelector('#color-scale').value, 'log');
 				u.hooks.draw[0](u);
 				const paths = u.ctx.log.slice(start).filter(e => e[0] == 'fill').flatMap(e => e.slice(1)).map(([path]) => path);
-				const expected = Array.from({ length: size }, () => []);
-				indices.forEach((color, i) => expected[color].push(u.valToPos(i * 60, 'x', true)));
-				assert.equal(paths.length, size);
-				paths.forEach((path, color) => {
-					const xs = path.log.filter(e => e[0] == 'rect').flatMap(e => e.slice(1)).map(rect => rect[0]);
-					assert.deepEqual(xs, expected[color], `${size} colors, approximate palette index ${color}`);
-				});
+				checkColumnColors(u, paths, indices, size);
 			}
 			finally { demo?.destroy(); root.remove(); }
 		}
@@ -1141,8 +1145,8 @@ describe('heatmap cells demo', () => {
 
 				function check() {
 					const { left, top, width, height } = u.bbox;
-					const px = v => Math.max(left, Math.min(left + width, u.valToPos(v, 'x', true)));
-					const py = v => Math.max(top, Math.min(top + height, u.valToPos(v, 'y', true)));
+					const px = v => paintedEdge(u, 'x', v);
+					const py = v => paintedEdge(u, 'y', v);
 					// Project source bounds independently of the plugin's grid and color-grouped paths.
 					const boxes = source[0].map((time, id) => {
 						const x = px(time / 1000 - 60), y = py(source[2][id]);
