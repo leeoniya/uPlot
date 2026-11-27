@@ -12,7 +12,7 @@ function closestIdx(num, arr, lo, hi) {
 	let mid;
 	lo = lo || 0;
 	hi = hi || arr.length - 1;
-	let bitwise = hi <= 2147483647;
+	let bitwise = hi <= 0x7fffffff;
 	while (hi - lo > 1) {
 		mid = bitwise ? lo + hi >> 1 : floor((lo + hi) / 2);
 		if (arr[mid] < num) lo = mid;
@@ -288,7 +288,7 @@ const retTrue = (_) => true;
 const retEq = (a, b) => a == b;
 function roundIncr(num, incr, mode) {
 	let q = num / incr;
-	if (abs(q) >= 0x38d7ea4c68000) return num;
+	if (abs(q) >= 1e15) return num;
 	let dec = fixedDec.get(incr);
 	if (dec == null) fixedDec.set(incr, dec = guessDec(incr));
 	let nearest = round(q);
@@ -315,7 +315,7 @@ function roundDec(val, dec = 0) {
 	if (isInt(val)) return val;
 	let p = pow10(dec);
 	let n = abs(val) * p;
-	if (dec > 0 && (n >= 0x38d7ea4c68000 || dec > 32)) return val;
+	if (dec > 0 && (n >= 1e15 || dec > 32)) return val;
 	let int = floor(n);
 	let midpoint = (int + .5) / p;
 	if (dec > 22 && abs(n - int - .5) <= n * Number.EPSILON * 2) midpoint = +midpoint.toFixed(dec + 1);
@@ -840,7 +840,7 @@ function getDayOfYear(date) {
 	let y = date.getFullYear();
 	let m = date.getMonth() + 1;
 	let d = date.getDate();
-	return --m * 31 - (m > 1 ? (1054267675 >> m * 3 - 6 & 7) - (y & 3 || !(y % 25) && y & 15 ? 0 : 1) : 0) + d;
+	return --m * 31 - (m > 1 ? (0x3ed6d91b >> m * 3 - 6 & 7) - (y & 3 || !(y % 25) && y & 15 ? 0 : 1) : 0) + d;
 }
 const PERIOD_MONTH = 4;
 const PERIOD_YEAR = 5;
@@ -1590,7 +1590,7 @@ function selectRangeY(request, count, exactCount) {
 		let dec = fixedDec.get(incr);
 		let tickSpan = count * incr;
 		let magnitude = requiredMagnitude + tickSpan;
-		if (dec > 32 || magnitude / incr >= 0x38d7ea4c68000 || magnitude > Number.MAX_SAFE_INTEGER || dec > 0 && magnitude * 10 ** dec >= 0x38d7ea4c68000) continue;
+		if (dec > 32 || magnitude / incr >= 1e15 || magnitude > Number.MAX_SAFE_INTEGER || dec > 0 && magnitude * 10 ** dec >= 1e15) continue;
 		if (minAnchor != null && !incrAligned(minAnchor, incr) || maxAnchor != null && !incrAligned(maxAnchor, incr)) continue;
 		let lo;
 		let hi;
@@ -1633,7 +1633,7 @@ function selectRangeY(request, count, exactCount) {
 			}
 		}
 		magnitude = max(abs(lo), abs(hi));
-		if (magnitude <= Number.MAX_SAFE_INTEGER && (dec == 0 || magnitude * 10 ** dec < 0x38d7ea4c68000) && lo >= hardMin && hi <= hardMax && lo <= boundedMin && hi >= boundedMax && hi > lo) {
+		if (magnitude <= Number.MAX_SAFE_INTEGER && (dec == 0 || magnitude * 10 ** dec < 1e15) && lo >= hardMin && hi <= hardMax && lo <= boundedMin && hi >= boundedMax && hi > lo) {
 			if (best == null || abs(foundCount - count) <= abs(best.count - count)) best = {
 				min: lo == 0 ? 0 : lo,
 				max: hi == 0 ? 0 : hi,
@@ -2910,8 +2910,7 @@ function splineInterp(interp, opts) {
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let yVal = dataY[i];
 				if (yVal != null) {
-					let xVal = dataX[i];
-					let xPos = pixelForX(xVal);
+					let xPos = pixelForX(dataX[i]);
 					xCoords.push(prevXPos = xPos);
 					yCoords.push(pixelForY(dataY[i]));
 				} else if (yVal === null) hasGap = true;
@@ -4585,8 +4584,7 @@ function uPlot(opts, data, then) {
 			let finalPos = basePos + (tickSize + axisGap) * shiftDir;
 			y = ori == 0 ? finalPos : 0;
 			x = ori == 1 ? finalPos : 0;
-			let font = axis.font[0];
-			setFontStyle(font, fillStyle, axis.align == 1 ? LEFT : axis.align == 2 ? RIGHT : angle > 0 ? LEFT : angle < 0 ? RIGHT : ori == 0 ? "center" : side == 3 ? RIGHT : LEFT, angle || ori == 1 ? "middle" : side == 2 ? "top" : BOTTOM);
+			setFontStyle(axis.font[0], fillStyle, axis.align == 1 ? LEFT : axis.align == 2 ? RIGHT : angle > 0 ? LEFT : angle < 0 ? RIGHT : ori == 0 ? "center" : side == 3 ? RIGHT : LEFT, angle || ori == 1 ? "middle" : side == 2 ? "top" : BOTTOM);
 			let lineHeight = axis.font[1] * axis.lineGap;
 			let canOffs = _splits.map((val) => pxRound(getPos(val, scale, plotDim, plotOff)));
 			let _values = axis._values;
@@ -5602,8 +5600,7 @@ function uPlot(opts, data, then) {
 	events.mouseup = mouseUp;
 	events.dblclick = dblClick;
 	events["setSeries"] = (e, src, idx, opts) => {
-		let seriesIdxMatcher = syncOpts.match[2];
-		idx = seriesIdxMatcher(self, src, idx);
+		idx = (0, syncOpts.match[2])(self, src, idx);
 		idx != -1 && setSeries(idx, opts, true, false);
 	};
 	if (showCursor) {
