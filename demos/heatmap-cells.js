@@ -38,7 +38,7 @@ const format = value => Number(value.toPrecision(5)).toString();
 const geometricCells = frame => heatmapCells(frame, { geometric: true });
 const snapshotDataset = frame => ({ ...geometricCells(frame), zeroHeight: 4, formatY: format });
 
-export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parityZero } = {}) {
+export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parityZero, numericXY = [] } = {}) {
 	const frame = type => frames.find(f => f.schema.meta?.type == type);
 	const sources = {
 			classic: [frame('heatmap-rows'), heatmapRows],
@@ -47,6 +47,9 @@ export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parity
 			parity: [parity, geometricCells],
 			parityZero: [parityZero, f => ({ ...geometricCells(f), zeroHeight: 4 })],
 			timeseries: [frame('timeseries-wide'), f => ({ ...heatmapTimeSeries(f), valueLabel: 'Value' })],
+			xyDense: [numericXY[0], heatmapCells],
+			xySparse: [numericXY[1], heatmapCells],
+			xyBounds: [numericXY[2], heatmapCells],
 		};
 	const datasets = {
 		synthetic: geometricCells(frame('heatmap-cells')),
@@ -84,7 +87,8 @@ export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parity
 }
 
 function createView(root, dataset) {
-	const { fields, grid, xSize, data: sourceData, axes, zeroHeight = 0, formatY = formatSeconds, valueLabel = 'Count' } = dataset;
+	const { fields, grid, xSize, ySize = 1, time = true, data: sourceData, axes, zeroHeight = 0,
+		formatY = time ? formatSeconds : format, valueLabel = 'Count' } = dataset;
 	const hasZeroBucket = zeroHeight > 0;
 	const labeledY = bucketEdgeLabels(axes?.[1]);
 	const centeredX = grid?.x?.categories != null, centeredY = grid?.y?.categories != null;
@@ -162,16 +166,16 @@ function createView(root, dataset) {
 
 	const signed = root.querySelector('#signed-data');
 	const logOptions = yScale.querySelectorAll('option[value^="log"]');
-	if (hasZeroBucket || ordinalY) signed.checked = false;
+	if (hasZeroBucket || fields) signed.checked = false;
 	const previousScale = yScale.value;
-	if (ordinalY) yScale.value = 'linear';
+	if (fields) yScale.value = 'linear';
 	if (signed.checked) data = mirroredData();
 	heightValue.data = `${height.value}px`;
 
 	function applyFrame(u) {
 		heatmap.setFrame(dataset);
 		const [x0, x1] = u.scales.x.scan(u, 'x'), [y0, y1] = u.scales.y.scan(u, 'y');
-		status.textContent = `${u.data[1][0].length.toLocaleString()} cells · ${Math.round((x1 - x0) / xSize)} columns · ${y1 - y0} ordinal rows`;
+		status.textContent = `${u.data[1][0].length.toLocaleString()} cells · ${Math.round((x1 - x0) / xSize)} columns · ${Math.round((y1 - y0) / ySize)} ${ordinalY ? 'ordinal rows' : 'rows'}`;
 	}
 
 	function createPlot(width, plotHeight = height.valueAsNumber) {
@@ -218,7 +222,7 @@ function createView(root, dataset) {
 			legend: { show: false },
 			cursor: { drag: { x: true, y: true } },
 			scales: fields ? {
-				x: { time: dataset.time ?? true, range: exactRange },
+				x: { time, range: exactRange },
 				y: { range: exactRange },
 			} : {
 				// Legacy transformed grids supply their own display bounds and adaptive threshold.
@@ -295,8 +299,9 @@ function createView(root, dataset) {
 					hoverIdx = i;
 					if (i == null) { readoutText.data = hint; return; }
 					const cols = u.data[1], xVal = cols[0][i], yVal = cols[1][i];
-					const x = centeredX ? u.axes[0].values(u, [xVal], 0, 0, 1)[0] :
-						u.axes[0].values(u, [xVal - xSize, xVal], 0, 0, xSize).join('–').replace(/\n/g, ' ') + ' UTC';
+					const x = centeredX ? u.axes[0].values(u, [xVal], 0, 0, 1)[0] : time ?
+						u.axes[0].values(u, [xVal - xSize, xVal], 0, 0, xSize).join('–').replace(/\n/g, ' ') + ' UTC' :
+						`${format(xVal - xSize)}–${format(xVal)}`;
 					const y = centeredY ? u.axes[1].values(u, [yVal], 1, 0, 1)[0] : labeledY ? labeledY.cell(yVal, cols[2][i]) :
 						`${formatY(yVal)}–${formatY(cols[2][i])}`;
 					readoutText.data = `${x} · Y: ${y} · ${valueLabel}: ${format(cols.at(-1)[i])}`;
@@ -348,13 +353,13 @@ function createView(root, dataset) {
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
 	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = false;
-	signed.disabled = hasZeroBucket || ordinalY;
-	yScale.disabled = ordinalY;
+	signed.disabled = hasZeroBucket || !!fields;
+	yScale.disabled = !!fields;
 
 	return {
 		get plot() { return plot; },
 		destroy() {
-			if (ordinalY) yScale.value = previousScale;
+			if (fields) yScale.value = previousScale;
 			height.removeEventListener('input', setHeight);
 			cellGap.removeEventListener('input', setGap);
 

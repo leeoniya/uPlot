@@ -33,9 +33,12 @@
 					<option value="otelClassic">OTel → classic · histogram rows</option>
 					<option value="otelNhcb">OTel → NHCB · native histogram with custom buckets</option>
 					<option value="parity">Sparse parity · positive duration buckets</option>
-							<option value="parityZero">Sparse parity · zero and positive duration buckets</option>
-							<option value="categorical">Categorical · method × status</option>
-							<option value="timeseries">Time series · value by series</option>
+					<option value="parityZero">Sparse parity · zero and positive duration buckets</option>
+					<option value="categorical">Categorical · method × status</option>
+					<option value="timeseries">Time series · value by series</option>
+					<option value="xyDense">Numeric XY · dense lower bounds</option>
+					<option value="xySparse">Numeric XY · sparse, inferred X width</option>
+					<option value="xyBounds">Numeric XY · sparse, explicit bounds</option>
 				</select>
 				<button id="set-data" type="button" disabled>setData() — same data</button>
 			</div>
@@ -81,14 +84,14 @@
 			import { generateHeatmapCells } from './lib/heatmapCellsData.js';
 
 			try {
-				const [classic, otelClassic, otelNhcb, parity, parityZero, timeseries] = await Promise.all(['classic', 'otel-classic', 'otel-nhcb', 'parity', 'parity-zero', 'timeseries'].map(async name => {
-					const response = await fetch(`./data/heatmap-${name}.json`);
-					if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
-					const [frame] = await response.json();
-					return frame;
-				}));
+				const [[classic], [otelClassic], [otelNhcb], [parity], [parityZero], [timeseries], numericXY] = await Promise.all(
+					['classic', 'otel-classic', 'otel-nhcb', 'parity', 'parity-zero', 'timeseries', 'numeric-xy'].map(async name => {
+						const response = await fetch(`./data/heatmap-${name}.json`);
+						if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
+						return response.json();
+					}));
 				const frames = generateHeatmapCells({ xGapProbability: 0.02 });
-				createDemo(document.querySelector('#demo'), [...frames, classic, timeseries], { otelClassic, otelNhcb, parity, parityZero });
+				createDemo(document.querySelector('#demo'), [...frames, classic, timeseries], { otelClassic, otelNhcb, parity, parityZero, numericXY });
 			}
 			catch (error) {
 				document.querySelector('#status').textContent = `Cannot load heatmap: ${error.message}. Serve the repository root over HTTP.`;

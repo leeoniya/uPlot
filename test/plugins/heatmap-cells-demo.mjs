@@ -121,10 +121,12 @@ describe('heatmap cells demo', () => {
 		select.dispatchEvent(new Event('change'));
 	}
 
-	function fixtureFrame(name) {
-		const [frame] = JSON.parse(readFileSync(new URL(`../../demos/data/heatmap-${name}.json`, import.meta.url), 'utf8'));
-		return frame;
+	function fixtureFrames(name) {
+		return JSON.parse(readFileSync(new URL(`../../demos/data/heatmap-${name}.json`, import.meta.url), 'utf8'));
 	}
+
+	const fixtureFrame = name => fixtureFrames(name)[0];
+	const xyDatasets = ['xyDense', 'xySparse', 'xyBounds'];
 
 	function demoFrames() {
 		return [...generateHeatmapCells({ columns: 2 }), fixtureFrame('classic')];
@@ -143,8 +145,8 @@ describe('heatmap cells demo', () => {
 			demo = createDemo(root, frames);
 			await Promise.resolve();
 			assert.ok(select, 'demo has a dataset selector');
-			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'otelClassic', 'otelNhcb', 'parity', 'parityZero', 'categorical', 'timeseries']);
-			assert.deepEqual(Array.from(select.options).filter(o => o.disabled).map(o => o.value), ['otelClassic', 'otelNhcb', 'parity', 'parityZero', 'timeseries']);
+			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'otelClassic', 'otelNhcb', 'parity', 'parityZero', 'categorical', 'timeseries', ...xyDatasets]);
+			assert.deepEqual(Array.from(select.options).filter(o => o.disabled).map(o => o.value), ['otelClassic', 'otelNhcb', 'parity', 'parityZero', 'timeseries', ...xyDatasets]);
 			assert.equal(select.value, 'synthetic');
 			assert.equal(select.disabled, false);
 			const original = demo.plot.data[1];
@@ -349,6 +351,61 @@ describe('heatmap cells demo', () => {
 			assert.equal(legend.textContent, 'Count · linear scale');
 		}
 		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('preserves positive counts and numeric cell bounds across the three XY datasets', async () => {
+		const numericXY = fixtureFrames('numeric-xy');
+		const [xMin, xMax, yMin, yMax, counts] = numericXY[2].data.values.map(col => col.slice());
+		const root = createDemoRoot();
+		const scale = root.querySelector('#y-scale'), signed = root.querySelector('#signed-data');
+		scale.value = 'log10';
+		const demo = createDemo(root, demoFrames(), { numericXY });
+		function hover(x, y) {
+			const u = demo.plot;
+			u.setCursor({ left: u.valToPos(x, 'x'), top: u.valToPos(y, 'y') });
+			return root.querySelector('#hover').textContent;
+		}
+		try {
+			for (const source of xyDatasets) {
+				assert.equal(root.querySelector(`#dataset option[value="${source}"]`).disabled, false);
+				selectDataset(root, source);
+				await settleLayout();
+				const u = demo.plot, { x, y } = u.scales;
+				const dense = source === 'xyDense', inferred = source === 'xySparse';
+				assert.deepEqual(u.data[1], [dense ? xMin.map(v => v + 40) : xMax, yMin, dense ? yMin.map(v => v + 40) : yMax, counts], source);
+				assert.equal(u.data[1][3].filter(n => n > 0).length, 12);
+				assert.deepEqual([x.min, x.max], dense ? [0, 800] : [inferred ? 100 : 120, 620]);
+				assert.deepEqual([y.min, y.max], dense ? [0, 800] : [120, 620]);
+				assert.deepEqual([x.time, y.time, x.distr, y.distr], [false, false, 1, 1]);
+				for (const [i, axis] of u.axes.entries())
+					assert.deepEqual(axis.values(u, [280, 300], i, 0, 20), ['280', '300']);
+				assert.equal(scale.value, 'linear');
+				assert.equal(scale.disabled, true);
+				assert.equal(signed.disabled, true);
+				assert.equal(signed.checked, false);
+				assert.doesNotMatch(root.querySelector('#status').textContent, /ordinal/i);
+
+				const peak = `${inferred ? 260 : 280}–${dense ? 320 : 300} · Y: 440–${dense ? 480 : 460} · Count: 81319`;
+				assert.equal(hover(290, 450), peak);
+				assert.doesNotMatch(hover(290, 390), /Count:/);
+
+				u.setScale('x', { min: 240, max: 360 });
+				u.setScale('y', { min: 380, max: 500 });
+				await settleLayout();
+				assert.deepEqual([x.min, x.max, y.min, y.max], [240, 360, 380, 500]);
+				if (inferred) assert.equal(hover(270, 450), peak);
+				else assert.doesNotMatch(hover(270, 450), /Count:/);
+			}
+
+			selectDataset(root, 'synthetic');
+			await settleLayout();
+			assert.equal(scale.disabled, false);
+			assert.equal(scale.value, 'log10');
+			assert.equal(signed.disabled, false);
+			assertNativeTimeLabels(demo.plot);
+			assert.deepEqual(demo.plot.axes[1].values(demo.plot, [.001, 1]), ['1 ms', '1 s']);
+		}
+		finally { demo.destroy(); root.remove(); }
 	});
 
 	it('switches between sparse OTel fixtures and preserves ordinal bucket edges through zoom and reset', async () => {

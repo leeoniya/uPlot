@@ -1,4 +1,4 @@
-import { smallestGap } from './heatmapFrame.js';
+import { compileHeatmapFields, smallestGap } from './heatmapFrame.js';
 
 // For a known geometric grid, one regular bucket suffices, even if intervening rows are missing.
 function bucketFactor(lo, hi) {
@@ -17,8 +17,39 @@ function xMaxGrid(step, first, last) {
 	return first === undefined ? {step} : {step, extent: [first, last]};
 }
 
-// Unranked sparse bounds can have mixed widths. Only advertise a linear frame on request.
+function positiveCells(cells) {
+	const [xs, lo, hi, counts] = cells;
+	if (!counts.includes(0)) return cells;
+
+	const sparse = [[], [], [], []];
+	for (let i = 0; i < counts.length; i++) {
+		if (counts[i] === 0) continue;
+		sparse[0].push(xs[i]);
+		sparse[1].push(lo[i]);
+		sparse[2].push(hi[i]);
+		sparse[3].push(counts[i]);
+	}
+	return sparse;
+}
+
+function numericCells(fields, columns, xField) {
+	const names = fields.map(f => f.name);
+	const pairedX = names.includes('xMin') && names.includes('xMax');
+	const step = pairedX ? undefined : xField.config?.interval ?? undefined;
+	// Empty cells still declare grid spacing and bounds. Resolve them before compaction.
+	const {cells, xSize, ySize, yRange} = compileHeatmapFields(names)({data: [null, columns], grid: {x: {step}}});
+	const xs = cells[0];
+	return {
+		time: false, xSize, ySize, fields: cellFields, data: [null, positiveCells(cells)],
+		grid: {x: xMaxGrid(xSize, xs[0], xs.at(-1)), y: xs.length ? {distr: 1, extent: yRange} : {distr: 1}},
+	};
+}
+
 export function heatmapCells({schema, data}, {ordinal = false, geometric = false, linear = false} = {}) {
+	const numericX = schema.fields.find(f => f.type === 'number' && (f.name === 'x' || f.name === 'xMin' || f.name === 'xMax'));
+	if (numericX) return numericCells(schema.fields, data.values, numericX);
+
+	// Unranked time buckets can have mixed widths. Only advertise a linear frame on request.
 	const indices = cellFields.map(name => schema.fields.findIndex(f => f.name === name));
 	// Sparse cells already follow the plugin contract. Only X needs unit conversion.
 	const [times, lo, hi, counts] = indices.map(i => data.values[i]);

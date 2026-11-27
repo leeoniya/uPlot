@@ -51,7 +51,7 @@ describe('heatmapCells', () => {
 
 	it('matches frame fields by name and reuses sparse Y and count columns', () => {
 		const f = frame([
-			{name: 'count'}, {name: 'yMin'}, {name: 'yLayout'}, {name: 'xMax', config: {interval: 125}}, {name: 'yMax'},
+			{name: 'count', type: 'number'}, {name: 'yMin', type: 'number'}, {name: 'yLayout'}, {name: 'xMax', config: {interval: 125}}, {name: 'yMax', type: 'number'},
 		], [[1/285, 0.5], [-1, 0], [0, 0], [500, 875], [0, 1]]);
 		const before = structuredClone(f);
 		const result = heatmapCells(f);
@@ -185,6 +185,68 @@ describe('heatmapCells', () => {
 		assert.equal(r.data[1][0].length, times.length);
 		assert.equal(r.data[1][0].at(-1), times.at(-1) / 1000);
 		columns.forEach((col, i) => assert.strictEqual(r.data[1][i+1], col));
+	});
+});
+
+describe('numeric heatmapCells', () => {
+	const [dense, sparse, paired] = JSON.parse(readFileSync(new URL('../../demos/data/heatmap-numeric-xy.json', import.meta.url), 'utf8'));
+	const fields = ['xMax', 'yMin', 'yMax', 'count'];
+
+	it('infers the full dense grid before dropping zero counts, including its empty outer bins', () => {
+		const before = structuredClone(dense);
+		const r = heatmapCells(dense);
+		const [xs, ys, counts] = dense.data.values;
+		const occupied = counts.flatMap((n, i) => n > 0 ? [i] : []);
+		assert.equal(occupied.length, 12);
+		assert.deepEqual(r, {
+			time: false, xSize: 40, ySize: 40, fields,
+			data: [null, [occupied.map(i => xs[i] + 40), occupied.map(i => ys[i]), occupied.map(i => ys[i] + 40), occupied.map(i => counts[i])]],
+			grid: {x: {step: 40, extent: [40, 800]}, y: {distr: 1, extent: [0, 800]}},
+		});
+		const {xRange, yRange} = resolve(r);
+		assert.deepEqual(xRange, [0, 800]);
+		assert.deepEqual(yRange, [0, 800]);
+		assert.deepEqual(dense, before);
+	});
+
+	it('infers sparse xMax spacing unless its field supplies an interval in source units', () => {
+		for (const interval of [undefined, 20]) {
+			const f = structuredClone(sparse);
+			if (interval !== undefined) f.schema.fields[0].config.interval = interval;
+			const r = heatmapCells(f);
+			assert.strictEqual(r.data[1], f.data.values);
+			assert.equal(r.time, false);
+			assert.deepEqual(r.fields, fields);
+			assert.equal(r.xSize, interval ?? 40);
+			assert.equal(r.ySize, 20);
+			const {xRange, yRange} = resolve(r);
+			assert.deepEqual(xRange, [interval === undefined ? 100 : 120, 620]);
+			assert.deepEqual(yRange, [120, 620]);
+		}
+	});
+
+	it('uses paired bounds rather than gaps or interval hints and reuses the reordered columns', () => {
+		const order = [4, 3, 1, 0, 2];
+		const f = frame(order.map(i => ({...paired.schema.fields[i], config: {interval: 80}})), order.map(i => paired.data.values[i]));
+		const r = heatmapCells(f);
+		assert.deepEqual(r.fields, fields);
+		assert.equal(r.xSize, 20);
+		assert.equal(r.ySize, 20);
+		const {cells, xRange, yRange} = resolve(r);
+		assert.deepEqual(xRange, [120, 620]);
+		assert.deepEqual(yRange, [120, 620]);
+		cells.forEach((col, i) => assert.strictEqual(col, paired.data.values[i + 1]));
+	});
+
+	it('converts centered X and Y anchors to canonical edges without changing units', () => {
+		const f = frame([{name: 'y'}, {name: 'count'}, {name: 'x', type: 'number', config: {interval: 0.5}}], [[-1, 3], [1, 2], [-2, 2]]);
+		const r = heatmapCells(f);
+		assert.deepEqual(r.fields, fields);
+		assert.deepEqual(r.data[1].map(c => Array.from(c)), [[-1.75, 2.25], [-3, 1], [1, 5], [1, 2]]);
+		assert.strictEqual(r.data[1][3], f.data.values[1]);
+		const {xRange, yRange} = resolve(r);
+		assert.deepEqual(xRange, [-2.25, 2.25]);
+		assert.deepEqual(yRange, [-3, 5]);
 	});
 });
 
