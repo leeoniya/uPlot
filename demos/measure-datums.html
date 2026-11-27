@@ -24,17 +24,19 @@
 			const drawDatum = (u, x, y, color) => {
 				let cx = u.valToPos(x, "x", true);
 				let cy = u.valToPos(y, "y", true);
-				let rad = 10;
+				const rad = 6.67 * u.pxRatio;
+				const arm = 10 * u.pxRatio;
 
+				u.ctx.lineWidth = 1.33 * u.pxRatio;
 				u.ctx.strokeStyle = color;
 				u.ctx.beginPath();
 
 				u.ctx.arc(cx, cy, rad, 0, 2 * Math.PI);
 
-				u.ctx.moveTo(cx - rad - 5, cy);
-				u.ctx.lineTo(cx + rad + 5, cy);
-				u.ctx.moveTo(cx, cy - rad - 5);
-				u.ctx.lineTo(cx, cy + rad + 5);
+				u.ctx.moveTo(cx - arm, cy);
+				u.ctx.lineTo(cx + arm, cy);
+				u.ctx.moveTo(cx, cy - arm);
+				u.ctx.lineTo(cx, cy + arm);
 
 				u.ctx.stroke();
 			};
@@ -96,8 +98,6 @@
 					draw: (u) => {
 						if (x1 != null || x2 != null) {
 							u.ctx.save();
-
-							u.ctx.lineWidth = 2;
 
 							if (x1 != null) {
 								drawDatum(u, x1, y1, "blue");
