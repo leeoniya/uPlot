@@ -80,8 +80,8 @@ export function heatmapPlugin({ fields, xSize, grid, cellGap = 0, zeroHeight = 0
 			const counts = cells[3];
 			for (let i = 0; i < counts.length; i++) {
 				const count = counts[i];
-				min = Math.min(min, count);
-				max = Math.max(max, count);
+				if (count < min) min = count;
+				if (count > max) max = count;
 			}
 			if (!counts.length) min = max = lower ?? upper ?? 0;
 		}
