@@ -1,28 +1,24 @@
-body.bench-demo.uplot,
-body.bench-demo.uplot-release,
-body.bench-demo.d3,
-body.bench-demo.d3-minmax,
-body.bench-demo.d3-svg,
-body.bench-demo.d3-svg-minmax {
+body[data-bench-demo|="uplot"],
+body[data-bench-demo|="d3"] {
 	margin: 0;
 }
 
-.bench-demo:is(.uplot, .uplot-release) .u-legend.u-inline .u-value {
+[data-bench-demo|="uplot"] .u-legend.u-inline .u-value {
 	width: 150px;
 	text-align: left;
 }
 
-.bench-demo:is(.d3, .d3-minmax, .d3-svg, .d3-svg-minmax) {
+[data-bench-demo|="d3"] {
 	font: 12px Arial, sans-serif;
 }
 
-.bench-demo:is(.d3, .d3-minmax, .d3-svg, .d3-svg-minmax) .chart {
+[data-bench-demo|="d3"] .chart {
 	position: relative;
 	width: 1920px;
 	height: 600px;
 }
 
-.bench-demo:is(.d3, .d3-minmax, .d3-svg, .d3-svg-minmax) .chart :is(canvas, svg) {
+[data-bench-demo|="d3"] .chart :is(canvas, svg) {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -30,36 +26,36 @@ body.bench-demo.d3-svg-minmax {
 	height: 600px;
 }
 
-.bench-demo:is(.d3, .d3-minmax, .d3-svg, .d3-svg-minmax) .legend {
+[data-bench-demo|="d3"] .legend {
 	display: flex;
 	gap: 24px;
 	margin: 8px 55px;
 }
 
-.bench-demo:is(.d3, .d3-minmax, .d3-svg, .d3-svg-minmax) .legend span {
+[data-bench-demo|="d3"] .legend span {
 	display: inline-block;
 	min-width: 150px;
 }
 
-.bench-demo.chartjs .chart-container {
+[data-bench-demo="chartjs"] .chart-container {
 	position: relative;
 	margin: auto;
 	width: 1920px;
 	height: 600px;
 }
 
-.bench-demo.echarts #chart,
-.bench-demo.flot .demo-container,
-.bench-demo.dygraphs #graphdiv {
+[data-bench-demo="echarts"] #chart,
+[data-bench-demo="flot"] .demo-container,
+[data-bench-demo="dygraphs"] #graphdiv {
 	width: 1920px;
 	height: 600px;
 }
 
-.bench-demo.flot .demo-placeholder {
+[data-bench-demo="flot"] .demo-placeholder {
 	width: 100%;
 	height: 100%;
 }
 
-.bench-demo.dygraphs #graphdiv {
+[data-bench-demo="dygraphs"] #graphdiv {
 	margin-bottom: 20px;
 }

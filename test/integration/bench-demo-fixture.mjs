@@ -87,7 +87,8 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				const host = setupDemo(id, parent);
 				assert.equal(host.parentNode, parent);
 				assert.equal(parent.children.length, 1);
-				assert.deepEqual([...parent.classList].sort(), ['keep-me', 'bench-demo', id].sort());
+				assert.deepEqual([...parent.classList], ['keep-me', 'flot']);
+				assert.equal(parent.dataset.benchDemo, id);
 				if (selector) assert.ok(host.querySelector(selector), id);
 				if (id === 'd3' || id === 'd3-minmax' || id === 'd3-svg' || id === 'd3-svg-minmax') {
 					if (id === 'd3' || id === 'd3-minmax') assert.ok(host.querySelector('#overlay'));
@@ -490,7 +491,8 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				creates++;
 				assert.equal(host.parentNode, document.body);
 				assert.notEqual(host, document.body);
-				assert.ok(document.body.classList.contains('uplot'));
+				assert.equal(document.body.dataset.benchDemo, 'uplot');
+				assert.equal(document.getElementById('wait').closest('.uplot'), null);
 				assert.deepEqual(data, [[600], [25], [25], [3]]);
 				assert.deepEqual(options.cache, {paths: false});
 				assert.equal(document.getElementById('wait').textContent, 'Rendering...');
@@ -522,7 +524,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			document.body.replaceChildren();
 			assert.equal(await runDemo('idle'), undefined);
 			assert.equal(document.getElementById('wait').textContent, 'Done!');
-			assert.ok(document.body.classList.contains('idle'));
+			assert.equal(document.body.dataset.benchDemo, 'idle');
 			assert.equal(document.body.classList.contains('uplot'), false);
 			assert.equal(loaded.length, 3, 'shared styles are cached');
 			assert.equal(fetches, 1, 'idle must not fetch data');

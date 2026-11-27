@@ -150,7 +150,7 @@ describe('uPlot release adapter', () => {
 		assert.equal(globalThis.uPlot, Master);
 	});
 
-	it('uses master host sizing and legend styles without retaining another variant class', () => {
+	it('uses master host sizing and legend styles without marking the page as a chart', () => {
 		const window = new Window();
 		try {
 			globalThis.document = window.document;
@@ -162,10 +162,8 @@ describe('uPlot release adapter', () => {
 			for (const variant of ['uplot', 'uplot-release']) {
 				parent.replaceChildren();
 				const host = setupDemo(variant, parent);
-				assert.equal(parent.classList.contains(variant), true);
-				assert.equal(parent.classList.contains('bench-demo'), true);
-				assert.equal(parent.classList.contains('echarts'), false);
-				assert.equal(parent.classList.contains(variant === 'uplot' ? 'uplot-release' : 'uplot'), false);
+				assert.equal(parent.dataset.benchDemo, variant);
+				assert.equal(host.closest('.uplot'), null);
 				assert.equal(host.style.width, '');
 				assert.equal(host.style.height, '');
 				host.innerHTML = '<div class="u-legend u-inline"><div class="u-value"></div></div>';

@@ -21,8 +21,7 @@ export function setupDemo(variant, parent) {
 	if (!Object.hasOwn(demoDependencies, variant))
 		throw new Error(`Unknown demo variant: ${variant}`);
 
-	parent.classList.remove(...Object.keys(demoDependencies));
-	parent.classList.add('bench-demo', variant);
+	parent.dataset.benchDemo = variant;
 
 	const host = document.createElement('div');
 	if (variant === 'd3' || variant === 'd3-minmax' || variant === 'd3-svg' || variant === 'd3-svg-minmax') {
