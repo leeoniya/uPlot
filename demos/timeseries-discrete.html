@@ -17,6 +17,9 @@
 
 			let xVals = Array.from({length: numSteps}, (v, i) => fromTs + stepTs * i);
 
+			// Align both plots and leave room for the first date tick.
+			const yAxisSize = 60;
+
 			// floats
 			let data1 = [
 				xVals,
@@ -38,7 +41,8 @@
 						size: 10,
 						gap: 0,
 						values: (u, splits) => splits.map(v => null),
-					}
+					},
+					{size: yAxisSize},
 				],
 				series: [
 					{},
@@ -79,6 +83,7 @@
 				axes: [
 					{},
 					{
+						size: yAxisSize,
 						splits: (u) => [0,2,4],
 						values: (u, splits) => splits.map((v, i) => `DEV${i + 1}`),
 					},
