@@ -30,11 +30,13 @@ it('reproduces each distribution by seed and resamples it with a different seed'
 		assert.throws(() => generatePoints('cloud', 16, seed), RangeError);
 });
 
-it('issues one grid update per frame when locked sliders move together', () => {
+it('coalesces sample and bucket changes without locking the sample count to either axis', () => {
 	const win = new Window();
 	const doc = win.document;
 	doc.body.innerHTML = readFileSync(new URL('../../demos/heatmap-aggregation.html', import.meta.url), 'utf8');
 	const x = doc.getElementById('nx'), y = doc.getElementById('ny');
+	const samples = doc.getElementById('samples'), sampleValue = doc.getElementById('samples-value');
+	assert.deepEqual([samples.min, samples.max, samples.step, samples.value], ['5000', '250000', '5000', '100000']);
 	const frames = [], updates = [];
 	win.requestAnimationFrame = fn => frames.push(fn);
 	bindBucketControls(doc.getElementById('grid'), () => updates.push([x.value, y.value]));
@@ -46,17 +48,31 @@ it('issues one grid update per frame when locked sliders move together', () => {
 	move(x, '32');
 	assert.equal(y.value, '32');
 	move(y, '64');
+	assert.equal(samples.value, '100000');
+	move(samples, '105000');
+	assert.equal(sampleValue.value, (105000).toLocaleString());
 	assert.equal(x.value, '64');
+	assert.equal(y.value, '64');
 	assert.deepEqual(updates, []);
 	assert.equal(frames.length, 1);
 	frames.shift()();
 	assert.deepEqual(updates, [['64', '64']]);
 	assert.equal(frames.length, 0);
 
-	move(x, '48');
+	const lock = doc.querySelector('button#lock-grid');
+	assert.equal(lock.getAttribute('aria-pressed'), 'true');
+	lock.click();
+	assert.equal(lock.getAttribute('aria-pressed'), 'false');
+	assert.equal(frames.length, 0);
+	move(y, '48');
+	frames.shift()();
+	assert.deepEqual(updates.at(-1), ['64', '48']);
+
+	lock.click();
+	assert.equal(lock.getAttribute('aria-pressed'), 'true');
 	assert.equal(frames.length, 1);
 	frames.shift()();
-	assert.deepEqual(updates, [['64', '64'], ['48', '48']]);
+	assert.deepEqual(updates.at(-1), ['48', '48']);
 });
 
 const edgeXs = [4, -0.5, 0, -2, 2, 0, 1.5, 4];

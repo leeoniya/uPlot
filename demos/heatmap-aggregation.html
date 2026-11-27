@@ -8,24 +8,22 @@
 	<style>
 		body { max-width: 64rem; margin: 24px auto; padding: 0 16px; font: 15px system-ui, sans-serif; color: #182c36; }
 		fieldset { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 0; padding: 0; margin: 0 0 12px; }
-		legend { padding: 0 0 6px; }
+
 		button[aria-pressed="true"] { background: #195273; color: white; }
 		#grid input[type="range"] { width: min(12rem, 45vw); vertical-align: middle; }
 		#grid output { display: inline-block; min-width: 3ch; font-variant-numeric: tabular-nums; }
+		#lock-grid[aria-pressed="true"] .unlocked, #lock-grid[aria-pressed="false"] .locked { display: none; }
 
 		#plot { width: min(100%, 680px); }
-		#legend { width: min(260px, 100%); margin: 12px 0; }
+		#legend { display: grid; grid-template-columns: max-content minmax(0, 260px); align-items: center; gap: 0 8px; margin: 12px 0; }
 		#color-ramp { height: 10px; }
-		#legend figcaption { display: flex; justify-content: space-between; margin-top: 4px; }
+		#legend figcaption { grid-column: 2; display: flex; justify-content: space-between; }
 		.u-cursor-pt { border-radius: 0; }
 	</style>
 </head>
 <body>
-	<h1>XY heatmap aggregation</h1>
-	<p>Click any distribution to draw 250,000 new points, even if it is already selected. The bucket sliders change the grid without resampling.</p>
-	<div>
-		<fieldset id="samplers">
-			<legend>Distribution</legend>
+	<div id="grid">
+		<fieldset id="samplers" aria-label="Distribution">
 			<button type="button" value="cloud" aria-pressed="false">Correlated cloud</button>
 			<button type="button" value="annulus" aria-pressed="false">Uniform annulus</button>
 			<button type="button" value="clusters" aria-pressed="true">Three clusters</button>
@@ -33,23 +31,35 @@
 			<button type="button" value="spiral" aria-pressed="false">Noisy spiral</button>
 			<button type="button" value="checkerboard" aria-pressed="false">Checkerboard</button>
 		</fieldset>
-		<fieldset id="grid">
-			<legend>Bucket counts</legend>
+		<fieldset aria-label="Sampling">
+			<label>Samples <input id="samples" type="range" min="5000" max="250000" step="5000" value="100000"></label>
+			<output id="samples-value" for="samples">100,000</output>
+		</fieldset>
+		<fieldset aria-label="Bucket counts">
 			<label>X buckets <input id="nx" type="range" min="8" max="128" step="1" value="128"></label>
 			<output id="nx-value" for="nx">128</output>
+			<button id="lock-grid" type="button" aria-pressed="true" aria-label="Lock X and Y counts" title="Lock X and Y counts">
+				<span class="locked" aria-hidden="true">🔒</span><span class="unlocked" aria-hidden="true">🔓</span>
+			</button>
 			<label>Y buckets <input id="ny" type="range" min="8" max="128" step="1" value="128"></label>
 			<output id="ny-value" for="ny">128</output>
-			<label><input id="lock-grid" type="checkbox" checked> Lock X and Y counts</label>
 		</fieldset>
 	</div>
-	<p id="status" role="status">Preparing samples…</p>
-
-	<div id="plot"></div>
 	<figure id="legend">
+		<label>Count scale <select id="color-scale">
+			<option value="linear">Linear</option>
+			<option value="sqrt" selected>Square root</option>
+			<option value="cbrt">Cube root</option>
+			<option value="log">Log</option>
+		</select></label>
 		<div id="color-ramp" aria-hidden="true"></div>
-		<figcaption><span>0</span><span>Count · square-root scale</span><span id="color-max"></span></figcaption>
+		<figcaption>
+			<span id="color-min"></span>
+			<span id="color-max"></span>
+		</figcaption>
 	</figure>
-	<output id="hover"></output>
+	<div id="plot"></div>
+	<p><output id="last-resample" for="samples"></output> · <span id="status" role="status">Preparing samples…</span></p>
 	<script type="module" src="./heatmap-aggregation.js"></script>
 </body>
 </html>
