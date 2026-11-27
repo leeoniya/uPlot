@@ -1,7 +1,7 @@
 import uPlot from '../src/uPlot.js';
 import { rangeY } from '../src/rangeY.js';
 import { snapshot1, snapshot2 } from './data/heatmap-snapshots.js';
-import { heatmapCells, heatmapRows } from './lib/heatmapFrameAdapters.js';
+import { heatmapCells, heatmapRows, heatmapTimeSeries } from './lib/heatmapFrameAdapters.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
 
 
@@ -46,6 +46,7 @@ export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parity
 			otelNhcb: [otelNhcb, f => heatmapCells(f, { ordinal: true })],
 			parity: [parity, geometricCells],
 			parityZero: [parityZero, f => ({ ...geometricCells(f), zeroHeight: 4 })],
+			timeseries: [frame('timeseries-wide'), f => ({ ...heatmapTimeSeries(f), valueLabel: 'Value' })],
 		};
 	const datasets = {
 		synthetic: geometricCells(frame('heatmap-cells')),
@@ -83,7 +84,7 @@ export function createDemo(root, frames, { otelClassic, otelNhcb, parity, parity
 }
 
 function createView(root, dataset) {
-	const { fields, grid, xSize, data: sourceData, axes, zeroHeight = 0, formatY = formatSeconds } = dataset;
+	const { fields, grid, xSize, data: sourceData, axes, zeroHeight = 0, formatY = formatSeconds, valueLabel = 'Count' } = dataset;
 	const hasZeroBucket = zeroHeight > 0;
 	const labeledY = bucketEdgeLabels(axes?.[1]);
 	const centeredX = grid?.x?.categories != null, centeredY = grid?.y?.categories != null;
@@ -139,7 +140,7 @@ function createView(root, dataset) {
 	const readout = root.querySelector('#hover');
 	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	let hoverIdx;
-	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click to reset. Changing Y scale resets zoom.';
+	const hint = `Hover a cell for its bounds and ${valueLabel.toLowerCase()}. Drag to zoom; double-click to reset. Changing Y scale resets zoom.`;
 	const status = root.querySelector('#status');
 	readoutText.data = hint;
 	const colorRamp = root.querySelector('#color-ramp');
@@ -261,7 +262,7 @@ function createView(root, dataset) {
 				onColorScale({ min, max, stops, scale }) {
 					colorMin.textContent = format(min);
 					colorMax.textContent = format(max);
-					colorScaleLabel.textContent = `Count · ${scale == 'sqrt' ? '√' : scale == 'cbrt' ? '∛' : scale} scale`;
+					colorScaleLabel.textContent = `${valueLabel} · ${scale == 'sqrt' ? '√' : scale == 'cbrt' ? '∛' : scale} scale`;
 					colorRamp.style.background = min == max ? stops[0][1] :
 						`linear-gradient(to right, ${stops.map(([offset, color]) => `${color} ${offset * 100}%`).join(', ')})`;
 				},
@@ -298,7 +299,7 @@ function createView(root, dataset) {
 						u.axes[0].values(u, [xVal - xSize, xVal], 0, 0, xSize).join('–').replace(/\n/g, ' ') + ' UTC';
 					const y = centeredY ? u.axes[1].values(u, [yVal], 1, 0, 1)[0] : labeledY ? labeledY.cell(yVal, cols[2][i]) :
 						`${formatY(yVal)}–${formatY(cols[2][i])}`;
-					readoutText.data = `${x} · Y: ${y} · Count: ${format(cols.at(-1)[i])}`;
+					readoutText.data = `${x} · Y: ${y} · ${valueLabel}: ${format(cols.at(-1)[i])}`;
 				},
 			})],
 		};

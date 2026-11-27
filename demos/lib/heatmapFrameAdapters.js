@@ -143,3 +143,16 @@ export function heatmapRows(frame, {x = {}, y = {}} = {}) {
 		axes: [centeredX ? null : xAxis, centeredY ? null : yAxis],
 	};
 }
+
+export function heatmapTimeSeries(first, ...others) {
+	const [time, ...series] = first.schema.fields;
+	const values = first.data.values.slice();
+	for (const {schema, data} of others) {
+		series.push(schema.fields[1]);
+		values.push(data.values[1]);
+	}
+
+	// Series names are categories even when the fields carry histogram labels.
+	const fields = [time, ...series.map(({name}) => ({name}))];
+	return heatmapRows({schema: {fields}, data: {values}});
+}

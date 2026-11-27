@@ -2,7 +2,7 @@ import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {snapshot1, snapshot2} from '../../demos/data/heatmap-snapshots.js';
-import {heatmapCells, heatmapRows} from '../../demos/lib/heatmapFrameAdapters.js';
+import {heatmapCells, heatmapRows, heatmapTimeSeries} from '../../demos/lib/heatmapFrameAdapters.js';
 import {compileHeatmapFields} from '../../demos/lib/heatmapFrame.js';
 
 function resolve(result) {
@@ -374,5 +374,38 @@ describe('heatmapRows', () => {
 		const f = timed([125, 625], [1, 1]);
 		const values = ['A', 'B'];
 		assert.deepEqual(heatmapRows(f, {x: {align: 0, values}}).axes[0], {align: 0, splits: [0.125, 0.625], values});
+	});
+});
+
+describe('heatmapTimeSeries', () => {
+	it('preserves sample values, gaps, and series order for wide and aligned multi frames', () => {
+		const time = {type: 'time', config: {interval: 250}};
+		const series = [
+			{name: 'West', type: 'number', labels: {le: '1'}},
+			{name: 'East', type: 'number'},
+			{name: 'North', type: 'number'},
+		];
+		const times = [125.5, 625.5, 1125.5, 2625.5, 3125.5];
+		const columns = [[8.125, null, 0, 6.25, null], [3.75, -1, null, null, null], [null, 1.625, null, 14.5, null]];
+		const wide = frame([time, ...series], [times, ...columns]);
+		const multi = series.map((field, i) => structuredClone(frame([time, field], [times, columns[i]])));
+		const before = structuredClone([wide, multi]);
+
+		const result = heatmapTimeSeries(wide);
+		assert.deepEqual(result, {
+			fields: ['xMax', 'y', 'count'], xSize: 0.25, time: true,
+			grid: {x: {step: 0.25, extent: [0.1255, 3.1255]}, y: {categories: ['West', 'East', 'North']}},
+			axes: [null, null],
+			data: [null, [[0.1255, 0.1255, 0.6255, 2.6255, 2.6255], [0, 1, 2, 0, 2], [8.125, 3.75, 1.625, 6.25, 14.5]]],
+		});
+		assert.deepEqual(heatmapTimeSeries(...multi), result);
+		assert.deepEqual([wide, multi], before);
+	});
+
+	it('retains an empty series and infers the time step when no interval is supplied', () => {
+		const f = frame([{type: 'time'}, {name: 'Idle', labels: {ge: '0'}}], [[125, 2125, 2375], [null, 0, -1]]);
+		const result = heatmapTimeSeries(f);
+		assert.deepEqual(result.data, [null, [[], [], []]]);
+		assert.deepEqual(result.grid, {x: {step: 0.25, extent: [0.125, 2.375]}, y: {categories: ['Idle']}});
 	});
 });

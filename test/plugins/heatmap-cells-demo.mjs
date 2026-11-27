@@ -143,8 +143,8 @@ describe('heatmap cells demo', () => {
 			demo = createDemo(root, frames);
 			await Promise.resolve();
 			assert.ok(select, 'demo has a dataset selector');
-			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'otelClassic', 'otelNhcb', 'parity', 'parityZero', 'categorical']);
-			assert.deepEqual(Array.from(select.options).filter(o => o.disabled).map(o => o.value), ['otelClassic', 'otelNhcb', 'parity', 'parityZero']);
+			assert.deepEqual(Array.from(select.options, o => o.value), ['synthetic', 'snapshot1', 'snapshot2', 'classic', 'otelClassic', 'otelNhcb', 'parity', 'parityZero', 'categorical', 'timeseries']);
+			assert.deepEqual(Array.from(select.options).filter(o => o.disabled).map(o => o.value), ['otelClassic', 'otelNhcb', 'parity', 'parityZero', 'timeseries']);
 			assert.equal(select.value, 'synthetic');
 			assert.equal(select.disabled, false);
 			const original = demo.plot.data[1];
@@ -307,6 +307,46 @@ describe('heatmap cells demo', () => {
 			assertNativeTimeLabels(demo.plot);
 			assert.equal(scale.disabled, false);
 			assert.equal(signed.disabled, false);
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('colors centered series rows by their wide-frame samples and restores count labels on dataset change', async () => {
+		const frame = fixtureFrame('timeseries');
+		const step = 1200, times = Array.from({ length: 18 }, (_, i) => 1795786136.425 + i * step);
+		const series = frame.data.values.slice(1);
+		const samples = times.flatMap((_, i) => series.map(values => values[i]));
+		const root = createDemoRoot();
+		const legend = root.querySelector('#color-scale-label'), hover = root.querySelector('#hover');
+		let demo;
+		try {
+			demo = createDemo(root, [...demoFrames(), frame]);
+			assert.equal(root.querySelector('#dataset option[value="timeseries"]').disabled, false);
+			selectDataset(root, 'timeseries');
+			await settleLayout();
+			const u = demo.plot;
+			assert.deepEqual(u.data[1], [times.flatMap(t => [t, t, t]), times.flatMap(() => [0, 1, 2]), samples]);
+			assert.equal(u.scales.x.time, true);
+			assert.deepEqual([u.scales.x.min, u.scales.x.max], [times[0] - step, times.at(-1)]);
+			assertNativeTimeLabels(u);
+			assert.deepEqual([u.scales.y.min, u.scales.y.max], [-.5, 2.5]);
+			assert.deepEqual(u.axes[1]._splits, [0, 1, 2]);
+			assert.deepEqual(u.axes[1]._values, ['A-series', 'A-series1', 'A-series2']);
+			assert.equal(legend.textContent, 'Value · linear scale');
+			assert.equal(Number(root.querySelector('#color-min').textContent), Number(Math.min(...samples).toPrecision(5)));
+			assert.equal(Number(root.querySelector('#color-max').textContent), Number(Math.max(...samples).toPrecision(5)));
+
+			u.setCursor({ left: u.valToPos(times[1] - step / 2, 'x'), top: u.valToPos(1, 'y') });
+			assert.equal(u.cursor.idxs[1], 4);
+			const interval = nativeTimeValues(u, times.slice(0, 2), 0, 0, step).join('–').replace(/\n/g, ' ');
+			assert.equal(hover.textContent, `${interval} UTC · Y: A-series1 · Value: ${Number(series[1][1].toPrecision(5))}`);
+
+			selectDataset(root, 'categorical');
+			await settleLayout();
+			const categorical = demo.plot;
+			categorical.setCursor({ left: categorical.valToPos(1, 'x'), top: categorical.valToPos(1, 'y') });
+			assert.equal(hover.textContent, 'POST · Y: 4xx · Count: 3');
+			assert.equal(legend.textContent, 'Count · linear scale');
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});
