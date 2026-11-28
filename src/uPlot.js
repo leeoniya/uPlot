@@ -468,11 +468,13 @@ export default function uPlot(opts, data, then) {
 
 	let ready = false;
 
-	const can = placeTag("canvas");
-	const ctx = self.ctx = can.getContext("2d", opts.ctxAttrs);
+	// Reassigned by replaceLostCanvas()
+	let can = placeTag("canvas");
+	let ctx = self.ctx = can.getContext("2d", opts.ctxAttrs);
+	onCanvas(on);
 
 	const domRoot = opts.dom?.uplot !== false;
-	const root = self.root = domRoot ? placeTag("div") : can;
+	let root = self.root = domRoot ? placeTag("div") : can;
 
 	if (opts.id != null)
 		root.id = opts.id;
@@ -486,7 +488,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	const hasLegend = FEAT_LEGEND && (opts.legend?.show ?? legendOpts.show);
-	const wrap = domRoot && (opts.title || hasLegend) ? placeDiv(WRAP, root) : root;
+	let wrap = domRoot && (opts.title || hasLegend) ? placeDiv(WRAP, root) : root;
 
 	if (domRoot && wrap == root)
 		addClass(wrap, WRAP);
@@ -2854,10 +2856,61 @@ export default function uPlot(opts, data, then) {
 		if (!ready || can.height != height)
 			can.height = height;
 
-		if (reset) {
-			ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
-			ctxAlpha = 1;
+		if (reset)
+			resetCtxCache();
+	}
+
+	function resetCtxCache() {
+		ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
+		ctxAlpha = 1;
+	}
+
+	// Browsers may discard a canvas' backing store (GPU reset, memory pressure on a sleeping mobile device).
+	// A restored context comes back blank and in its default state, so the style cache is stale.
+	function onCtxRestored() {
+		resetCtxCache();
+		commit();
+	}
+
+	// Some browsers fail to restore a lost context: redraw, which replaces the canvas (via replaceLostCanvas()).
+	function onCtxLost() {
+		commit();
+	}
+
+	function onCanvas(onOff) {
+		onOff("contextlost", can, onCtxLost);
+		onOff("contextrestored", can, onCtxRestored);
+	}
+
+	function replaceLostCanvas() {
+		let can2 = placeTag("canvas");
+		let ctx2 = can2.getContext("2d", opts.ctxAttrs);
+
+		if (ctx2 == null || ctx2.isContextLost?.())
+			return false;
+
+		// class, id, style (sizing when the canvas is the root), part, etc.
+		for (let { name, value } of can.attributes) {
+			if (name != WIDTH && name != HEIGHT)
+				can2.setAttribute(name, value);
 		}
+
+		onCanvas(off);
+		can.replaceWith(can2);
+
+		if (root == can)
+			self.root = root = can2;
+		if (wrap == can)
+			wrap = can2;
+
+		can = can2;
+		self.ctx = ctx = ctx2;
+		onCanvas(on);
+
+		setCanvasSize();
+		resetCtxCache();
+
+		return true;
 	}
 
 	function applyLayout(plotChanged, axesChanged) {
@@ -2976,6 +3029,9 @@ export default function uPlot(opts, data, then) {
 
 		let didDraw = fullWidCss > 0 && fullHgtCss > 0;
 		if (didDraw) {
+			if (ctx.isContextLost?.())
+				replaceLostCanvas();
+
 			ctx.clearRect(0, 0, can.width, can.height);
 			fire("drawClear");
 			drawOrder.forEach(fn => fn());
@@ -4382,6 +4438,7 @@ export default function uPlot(opts, data, then) {
 		if (mouseOwner == self.uid)
 			mouseOwner = null;
 		off(dppxchange, win, onDppxChange);
+		onCanvas(off);
 		root.remove();
 		FEAT_LEGEND && legendView?.destroy();
 		tooltipPosition?.destroy();
