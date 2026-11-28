@@ -69,7 +69,7 @@ function boxesPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245
 
 		u.ctx.translate(offset, offset);
 
-		for (let i = u.scales.x.min; i <= u.scales.x.max; i++) {
+		for (let i = Math.max(0, Math.ceil(u.scales.x.min)); i <= Math.min(u.data[0].length - 1, Math.floor(u.scales.x.max)); i++) {
 			let med          = u.data[1][i];
 			let q1           = u.data[2][i];
 			let q3           = u.data[3][i];
@@ -207,9 +207,9 @@ function boxesPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245
 	};
 }
 
-async function makeChart(chartName) {
+export async function makeChart(chartName, results = null) {
 
-	const results = await loadFixture('./data/results.json');
+	results ??= await loadFixture('./data/results.json');
 
 	let benches = {};
 	// group by bench
@@ -284,6 +284,7 @@ async function makeChart(chartName) {
 		title: chartName,
 		legend: {show: false},
 		tooltip: {show: true, markers: {show: false}},
+		cursor: {drag: {x: libs.length > 1}},
 		plugins: [
 			columnHighlightPlugin(),
 			boxesPlugin()
@@ -294,6 +295,7 @@ async function makeChart(chartName) {
 				space: 10,
 				size: 100,
 				grid: {show: false},
+				splits: libs.length == 1 ? () => [0] : null,
 				values: (self, vals) => vals.map(v => libs[v]),
 			},
 		],
@@ -301,6 +303,7 @@ async function makeChart(chartName) {
 			x: {
 				distr: 2,
 				time: false,
+				range: (u, min, max) => min == max ? [min - 0.5, max + 0.5] : [min, max],
 			}
 		},
 		series: [
